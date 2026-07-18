@@ -8,7 +8,10 @@ from __future__ import annotations
 import threading
 import time
 import tkinter as tk
+import webbrowser
 from tkinter import colorchooser
+
+KOFI_URL = "https://ko-fi.com/eviance"
 
 import customtkinter as ctk
 
@@ -416,6 +419,13 @@ class SteamLedsApp(ctk.CTk):
         ctk.CTkLabel(c, text=t("set.trayinfo"), text_color=MUTED, justify="left",
                      font=self._font(11)).pack(anchor="w", padx=14, pady=(0, 12))
 
+        cs = self._card(tab, t("set.support"))
+        ctk.CTkButton(cs, text=t("set.kofi"), command=self._open_kofi, fg_color="#ff5e5b",
+                      hover_color="#e04b48", text_color="#ffffff",
+                      font=self._font(13, True), height=40).pack(anchor="w", padx=14, pady=(4, 6))
+        ctk.CTkLabel(cs, text="ko-fi.com/eviance", text_color=MUTED,
+                     font=self._font(11)).pack(anchor="w", padx=14, pady=(0, 12))
+
         c2 = self._card(tab, t("set.about"))
         ctk.CTkLabel(c2, text=t("set.previewinfo") if self.preview else t("set.hwok"),
                      text_color=MUTED, font=self._font(12)).pack(anchor="w", padx=14, pady=8)
@@ -441,6 +451,12 @@ class SteamLedsApp(ctk.CTk):
         except Exception:
             pass
         self._save_setting(opacity=self.opacity)
+
+    def _open_kofi(self):
+        try:
+            webbrowser.open(KOFI_URL)
+        except Exception as e:
+            self._status(f"error: {e}")
 
     def _toggle_autostart(self):
         try:

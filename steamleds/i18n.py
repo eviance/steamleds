@@ -71,6 +71,8 @@ STRINGS: dict[str, dict[str, str]] = {
     "set.appearance":  {"en": "Appearance", "pl": "Wygląd", "de": "Darstellung", "fr": "Apparence", "es": "Apariencia", "zh": "外观", "ja": "外観"},
     "set.opacity":     {"en": "Window opacity", "pl": "Przezroczystość okna", "de": "Fenster-Deckkraft", "fr": "Opacité de la fenêtre", "es": "Opacidad de ventana", "zh": "窗口不透明度", "ja": "ウィンドウの不透明度"},
     "set.glass":       {"en": "Glass effect (Windows 11)", "pl": "Efekt szkła (Windows 11)", "de": "Glaseffekt (Windows 11)", "fr": "Effet verre (Windows 11)", "es": "Efecto cristal (Windows 11)", "zh": "玻璃效果（Windows 11）", "ja": "ガラス効果（Windows 11）"},
+    "set.support":     {"en": "Support", "pl": "Wsparcie", "de": "Unterstützung", "fr": "Soutien", "es": "Apoyo", "zh": "支持", "ja": "サポート"},
+    "set.kofi":        {"en": "☕  Support me on Ko-fi", "pl": "☕  Wesprzyj mnie na Ko-fi", "de": "☕  Unterstütze mich auf Ko-fi", "fr": "☕  Soutenez-moi sur Ko-fi", "es": "☕  Apóyame en Ko-fi", "zh": "☕  在 Ko-fi 上支持我", "ja": "☕  Ko-fiで応援する"},
 }
 
 _state = {"lang": "en"}
