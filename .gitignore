@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+
+# ring0 helper binaries (users download these themselves)
+inpoutx64.dll
+inpout32.dll
+WinRing0x64.dll
+WinRing0x64.sys
+WinRing0.dll
+WinRing0.sys
+
+# editors / OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini

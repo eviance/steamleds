@@ -1,0 +1,86 @@
+"""Logic tests using the in-memory DummyBackend (no hardware/driver needed)."""
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from steamleds.colors import parse_color, rainbow, to_hex  # noqa: E402
+from steamleds.controller import (  # noqa: E402
+    BASE,
+    LED_COUNT,
+    OFF_BLOCK_A,
+    OFF_BLOCK_B,
+    OFF_EFFECT,
+    EFFECTS,
+    LedController,
+)
+from steamleds.portio import DummyBackend  # noqa: E402
+
+
+def make():
+    io = DummyBackend()
+    return io, LedController(io, brightness_scale=55)
+
+
+def test_set_led_writes_both_blocks():
+    io, ctrl = make()
+    ctrl.set_led(0, (255, 0, 0))
+    # raw block B == exact color
+    assert io.read(BASE + OFF_BLOCK_B + 0) == 255
+    assert io.read(BASE + OFF_BLOCK_B + 1) == 0
+    assert io.read(BASE + OFF_BLOCK_B + 2) == 0
+    # scaled block A == 255 * 55 // 255 == 55
+    assert io.read(BASE + OFF_BLOCK_A + 0) == 55
+    assert io.read(BASE + OFF_BLOCK_A + 1) == 0
+
+
+def test_led_stride_is_three():
+    io, ctrl = make()
+    ctrl.set_led(5, (0x10, 0x20, 0x30))
+    p = BASE + OFF_BLOCK_B + 3 * 5
+    assert (io.read(p), io.read(p + 1), io.read(p + 2)) == (0x10, 0x20, 0x30)
+
+
+def test_set_all_requires_full_strip():
+    _io, ctrl = make()
+    try:
+        ctrl.set_all([(0, 0, 0)])
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("expected ValueError for wrong length")
+
+
+def test_ensure_manual_sets_effect_register():
+    io, ctrl = make()
+    ctrl.ensure_manual()
+    assert io.read(BASE + OFF_EFFECT) == EFFECTS["manual"]
+
+
+def test_readback_roundtrip():
+    _io, ctrl = make()
+    colors = rainbow(LED_COUNT)
+    ctrl.set_all(colors)
+    assert ctrl.read_all() == colors
+
+
+def test_brightness_rescales_block_a():
+    io, ctrl = make()
+    ctrl.set_led(0, (200, 100, 0))
+    ctrl.set_brightness_scale(255)  # full
+    assert io.read(BASE + OFF_BLOCK_A + 0) == 200
+    assert io.read(BASE + OFF_BLOCK_A + 1) == 100
+
+
+def test_color_parsing():
+    assert parse_color("#ff8800") == (255, 136, 0)
+    assert parse_color("255 136 0") == (255, 136, 0)
+    assert to_hex((255, 136, 0)) == "#ff8800"
+
+
+if __name__ == "__main__":
+    fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
+    for fn in fns:
+        fn()
+        print(f"ok  {fn.__name__}")
+    print(f"\n{len(fns)} tests passed")
