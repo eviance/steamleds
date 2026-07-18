@@ -93,6 +93,12 @@ def _make_controller(args) -> LedController:
 
 
 def main(argv: list[str] | None = None) -> int:
+    raw = sys.argv[1:] if argv is None else argv
+    if "--app" in raw:      # modern desktop app (customtkinter + tray)
+        from .app import run_app
+
+        return run_app(start_tray="--tray" in raw)
+
     args = build_parser().parse_args(argv)
 
     if args.cmd == "gui":

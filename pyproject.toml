@@ -10,6 +10,14 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
 keywords = ["valve", "steam-machine", "fremont", "rgb", "led", "openrgb"]
+dependencies = [
+    "customtkinter>=5.2",  # modern desktop UI
+    "pystray>=0.19",       # system-tray background running
+    "pillow>=9",           # tray icon + image helpers
+]
+
+[project.optional-dependencies]
+# The CLI (python -m steamleds ...) needs none of the above; only the desktop app does.
 classifiers = [
     "Environment :: Win32 (MS Windows)",
     "License :: OSI Approved :: MIT License",

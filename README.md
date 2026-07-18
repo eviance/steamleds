@@ -23,8 +23,11 @@ and the firmware effects without SteamOS.
   wave (Poland, Ukraine, France, Germany, Italy, … — pick your country)
 - 🔌 **Boot/power-on color** — persist a color that shows from power-on, before login
 - 🔆 Global brightness control (can go brighter than the factory default)
-- 🖥️ Tkinter GUI **and** a scriptable CLI
-- 🧩 No third-party Python packages (uses the standard library)
+- 🖥️ Modern dark desktop app (tabs: Colors / Effects / Flags / Animations /
+  Settings), **runs in the system tray**, optional **start-with-Windows**
+- 🛠️ **Animation builder** — compose Pattern × Motion (scroll/wave/pulse/breathe/
+  blink), tune speed/direction/colors, and save named presets
+- ⌨️ Scriptable CLI as well (`python -m steamleds …`)
 
 ## How it works
 
