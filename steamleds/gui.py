@@ -121,17 +121,35 @@ class LedPanel(tk.Frame):
 
 
 def run_gui(backend: str = "auto") -> int:
+    preview = False
     try:
         io = open_backend(backend)
     except Exception as exc:
+        # No ring0 driver / not running on the Steam Machine: offer preview mode.
         root = tk.Tk()
         root.withdraw()
-        messagebox.showerror("steamleds", f"Could not open port-I/O backend:\n\n{exc}")
-        return 2
+        from .portio import DummyBackend
+
+        go = messagebox.askyesno(
+            "steamleds",
+            "Could not access the LED hardware:\n\n"
+            f"{exc}\n\n"
+            "This app must run on the Steam Machine (booted into Windows), as "
+            "Administrator, with inpoutx64.dll next to it.\n\n"
+            "Open in PREVIEW mode (no changes sent to hardware)?",
+        )
+        root.destroy()
+        if not go:
+            return 2
+        io = DummyBackend()
+        preview = True
 
     ctrl = LedController(io)
     root = tk.Tk()
-    root.title("steamleds — Steam Machine LED control")
+    title = "steamleds — Steam Machine LED control"
+    if preview:
+        title += "  [PREVIEW — no hardware]"
+    root.title(title)
     root.resizable(False, False)
     LedPanel(root, ctrl).pack()
     root.mainloop()
