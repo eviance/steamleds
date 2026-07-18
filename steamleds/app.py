@@ -15,7 +15,7 @@ KOFI_URL = "https://ko-fi.com/eviance"
 
 import customtkinter as ctk
 
-from . import autostart, i18n, win11
+from . import autostart, i18n, sensors, win11
 from .anim import MOTIONS, PATTERNS, Animation, load_presets, save_presets
 from .colors import RGB, rainbow, to_hex
 from .controller import EFFECTS, LED_COUNT, LedController
@@ -134,7 +134,7 @@ class SteamLedsApp(ctk.CTk):
         tabs.pack(fill="both", expand=True, padx=18, pady=10)
         keys = [("tab.colors", self._tab_colors), ("tab.effects", self._tab_effects),
                 ("tab.flags", self._tab_flags), ("tab.animations", self._tab_anim),
-                ("tab.settings", self._tab_settings)]
+                ("tab.system", self._tab_system), ("tab.settings", self._tab_settings)]
         for key, builder in keys:
             frame = tabs.add(t(key))
             # scrollable body so all content stays reachable on any screen size
@@ -391,6 +391,56 @@ class SteamLedsApp(ctk.CTk):
                 (self.b_mirror.select if p.mirror else self.b_mirror.deselect)()
                 self._play(p); break
 
+    # ---- System (sensors) ----
+    def _tab_system(self, tab):
+        head = self._card(tab, t("sys.temps"))
+        self._sys_status = ctk.CTkLabel(head, text="…", text_color=MUTED, font=self._font(11))
+        self._sys_status.pack(anchor="w", padx=14, pady=(0, 10))
+
+        grid = ctk.CTkFrame(tab, fg_color="transparent")
+        grid.pack(fill="x", padx=6, pady=4)
+        grid.grid_columnconfigure((0, 1), weight=1)
+        self._tiles = {}
+        specs = [("fan", t("sys.fan"), "RPM", ACCENT), ("hot", t("sys.hottest"), "°C", "#ff5e5b"),
+                 ("t0", "Temp 1", "°C", "#29abe0"), ("t1", "Temp 2", "°C", "#7c5cff"),
+                 ("t2", "Temp 3", "°C", "#3ac569"), ("t3", "Temp 4", "°C", "#f5a623")]
+        for idx, (key, label, unit, color) in enumerate(specs):
+            card = ctk.CTkFrame(grid, fg_color=CARD2, corner_radius=16)
+            card.grid(row=idx // 2, column=idx % 2, sticky="nsew", padx=6, pady=6)
+            ctk.CTkLabel(card, text=label, text_color=MUTED, font=self._font(12)).pack(anchor="w", padx=14, pady=(10, 0))
+            val = ctk.CTkLabel(card, text="—", text_color=color, font=self._font(26, True))
+            val.pack(anchor="w", padx=14, pady=(0, 0))
+            ctk.CTkLabel(card, text=unit, text_color=MUTED, font=self._font(10)).pack(anchor="w", padx=14, pady=(0, 10))
+            self._tiles[key] = val
+
+        ctk.CTkLabel(tab, text="ℹ  " + t("sys.fanctl"), text_color=MUTED,
+                     font=self._font(11), justify="left").pack(anchor="w", padx=14, pady=(8, 4))
+
+        if getattr(self, "_sys_job", None):
+            try:
+                self.after_cancel(self._sys_job)
+            except Exception:
+                pass
+        self._sys_refresh()
+
+    def _sys_refresh(self):
+        try:
+            data = sensors.read_all(self.ctrl.io)
+        except Exception:
+            data = {"present": False, "temps": [], "fans": []}
+        if not data.get("present"):
+            self._sys_status.configure(text=t("sys.nohw"))
+            for v in self._tiles.values():
+                v.configure(text="—")
+        else:
+            temps, fans = data["temps"], data["fans"]
+            self._sys_status.configure(text="live ●")
+            self._tiles["fan"].configure(text=str(fans[0]) if fans else "—")
+            self._tiles["hot"].configure(text=str(max(temps)) if temps else "—")
+            for i in range(4):
+                self._tiles[f"t{i}"].configure(text=str(temps[i]) if i < len(temps) else "—")
+        self._sys_job = self.after(1000, self._sys_refresh)
+
     # ---- Settings ----
     def _tab_settings(self, tab):
         ap = self._card(tab, t("set.appearance"))
@@ -522,6 +572,12 @@ class SteamLedsApp(ctk.CTk):
 
     def quit_app(self):
         self._stop_anim()
+        if getattr(self, "_sys_job", None):
+            try:
+                self.after_cancel(self._sys_job)
+            except Exception:
+                pass
+            self._sys_job = None
         if self._tray is not None:
             try:
                 self._tray.stop()
