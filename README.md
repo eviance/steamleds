@@ -17,7 +17,9 @@ and the firmware effects without SteamOS.
 
 - 🎨 Set all 17 LEDs individually (per-LED RGB)
 - 🌈 One-shot presets: rainbow, solid color, off
-- ✨ Select firmware effects: `breath`, `rainbow`, `patrol` (KITT), `demo`, …
+- ✨ Firmware effects with live parameters: `breath`, `rainbow`, `patrol` (KITT),
+  `demo` — plus speed, breath level, color-shift and patrol-count tuning
+- 🔌 **Boot/power-on color** — persist a color that shows from power-on, before login
 - 🔆 Global brightness control (can go brighter than the factory default)
 - 🖥️ Tkinter GUI **and** a scriptable CLI
 - 🧩 No third-party Python packages (uses the standard library)
@@ -57,7 +59,9 @@ python -m steamleds rainbow
 python -m steamleds solid "#ff00ff"
 python -m steamleds led 0 "#00ff88"
 python -m steamleds gradient "#ff0000" "#00ff00" "#0000ff"
-python -m steamleds effect breath --delay 6
+python -m steamleds effect breath --delay 6 --breath 40
+python -m steamleds effect rainbow --shift 8
+python -m steamleds startup "#3300ff"   # boot/power-on color (persists)
 python -m steamleds off
 python -m steamleds dump            # read back current colors
 python -m steamleds gui             # graphical panel

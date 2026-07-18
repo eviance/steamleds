@@ -11,6 +11,9 @@ from steamleds.controller import (  # noqa: E402
     OFF_BLOCK_A,
     OFF_BLOCK_B,
     OFF_EFFECT,
+    OFF_EFFECT_MIRROR,
+    OFF_STARTUP_BRIGHT,
+    OFF_STARTUP_COLOR,
     EFFECTS,
     LedController,
 )
@@ -70,6 +73,22 @@ def test_brightness_rescales_block_a():
     ctrl.set_brightness_scale(255)  # full
     assert io.read(BASE + OFF_BLOCK_A + 0) == 200
     assert io.read(BASE + OFF_BLOCK_A + 1) == 100
+
+
+def test_effect_writes_index_to_both_registers():
+    io, ctrl = make()
+    ctrl.set_effect("rainbow")   # index 5 (confirmed on hardware)
+    assert io.read(BASE + OFF_EFFECT) == EFFECTS["rainbow"] == 5
+    assert io.read(BASE + OFF_EFFECT_MIRROR) == 5
+
+
+def test_startup_writes_boot_registers():
+    io, ctrl = make()
+    ctrl.set_startup((1, 90, 255), brightness=0x38)
+    assert (io.read(BASE + OFF_STARTUP_COLOR),
+            io.read(BASE + OFF_STARTUP_COLOR + 1),
+            io.read(BASE + OFF_STARTUP_COLOR + 2)) == (1, 90, 255)
+    assert io.read(BASE + OFF_STARTUP_BRIGHT) == 0x38
 
 
 def test_color_parsing():

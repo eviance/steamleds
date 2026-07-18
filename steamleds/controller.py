@@ -141,6 +141,18 @@ class LedController:
         if color_shift is not None:
             self.io.write(BASE + OFF_COLOR_SHIFT, color_shift)
 
+    def set_startup(self, color: RGB, brightness: int | None = None) -> None:
+        """Persist a boot color/brightness -- the panel shows this from power-on,
+        before login, and it survives reboots (written to the startup registers)."""
+        self._write_rgb(OFF_STARTUP_COLOR, 0, color)
+        if brightness is not None:
+            self.io.write(BASE + OFF_STARTUP_BRIGHT, max(0, min(255, brightness)))
+
+    def read_startup(self) -> tuple[RGB, int]:
+        c = self._read_rgb(OFF_STARTUP_COLOR, 0)
+        b = self.io.read(BASE + OFF_STARTUP_BRIGHT)
+        return c, b
+
     def read_led(self, index: int) -> RGB:
         """Read back the raw (BLOCK_B) color of one LED."""
         return self._read_rgb(OFF_BLOCK_B, index)

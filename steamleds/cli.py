@@ -54,6 +54,13 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("effect", help="Select a firmware effect.")
     p.add_argument("name", choices=list(EFFECTS))
     p.add_argument("--delay", type=int, default=None, help="animation speed 0..20")
+    p.add_argument("--breath", type=int, default=None, help="breath level 0..255")
+    p.add_argument("--shift", type=int, default=None, help="color shift 0..255")
+    p.add_argument("--patrol", type=int, default=None, help="patrol count 1..17")
+    _add_common(p)
+
+    p = sub.add_parser("startup", help="Persist a boot/power-on color (survives reboot).")
+    p.add_argument("color", help="#RRGGBB or 'r g b'")
     _add_common(p)
 
     p = sub.add_parser("dump", help="Read back current LED colors.")
@@ -103,8 +110,11 @@ def main(argv: list[str] | None = None) -> int:
         ctrl.off()
     elif args.cmd == "effect":
         ctrl.set_effect(args.name)
-        if args.delay is not None:
-            ctrl.set_effect_params(delay=args.delay)
+        ctrl.set_effect_params(delay=args.delay, breath_level=args.breath,
+                               color_shift=args.shift, patrol_num=args.patrol)
+    elif args.cmd == "startup":
+        ctrl.set_startup(parse_color(args.color),
+                         brightness=getattr(args, "brightness", None))
     elif args.cmd == "dump":
         for i, c in enumerate(ctrl.read_all()):
             print(f"LED {i:2d}: {to_hex(c)}")
