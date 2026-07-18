@@ -88,6 +88,18 @@ class LedPanel(tk.Frame):
                   command=lambda _v: self._set_anim_attr("speed", float(self.flag_speed.get()))
                   ).grid(row=1, column=1, columnspan=3, sticky="we", pady=(6, 0))
 
+        ttk.Label(fl, text="Direction:").grid(row=2, column=0, sticky="e", pady=(6, 0))
+        self.flag_dir = tk.StringVar(value="L → R")
+        dc = ttk.Combobox(fl, textvariable=self.flag_dir, values=["L → R", "R → L"],
+                          width=6, state="readonly")
+        dc.grid(row=2, column=1, sticky="w", pady=(6, 0))
+        dc.bind("<<ComboboxSelected>>",
+                lambda _e: self._set_anim_attr("direction", 1 if self.flag_dir.get() == "L → R" else -1))
+        self.flag_mirror = tk.BooleanVar(value=False)
+        ttk.Checkbutton(fl, text="Mirror (module orientation)", variable=self.flag_mirror,
+                        command=lambda: self._set_anim_attr("mirror", bool(self.flag_mirror.get()))
+                        ).grid(row=2, column=2, columnspan=2, sticky="w", pady=(6, 0))
+
         # --- global brightness ---
         bright = tk.Frame(self)
         bright.grid(row=5, column=0, sticky="we", pady=(12, 0))
@@ -129,8 +141,11 @@ class LedPanel(tk.Frame):
         if self._anim_job is not None:
             self._stop_anim()
             return
-        self._anim = FlagAnimator(self.flag_var.get(), count=LED_COUNT,
-                                  mode=self.flag_mode.get(), speed=float(self.flag_speed.get()))
+        self._anim = FlagAnimator(
+            self.flag_var.get(), count=LED_COUNT, mode=self.flag_mode.get(),
+            speed=float(self.flag_speed.get()),
+            direction=1 if self.flag_dir.get() == "L → R" else -1,
+            mirror=bool(self.flag_mirror.get()))
         self.flag_btn.configure(text="Stop")
         self.status.configure(text=f"Flag wave: {self.flag_var.get()}")
         self._flag_tick()

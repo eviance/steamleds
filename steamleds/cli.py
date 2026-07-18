@@ -71,6 +71,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--mode", choices=list(MODES), default=MODES[0])
     p.add_argument("--seconds", type=float, default=10.0, help="animation duration")
     p.add_argument("--speed", type=float, default=1.0)
+    p.add_argument("--reverse", action="store_true", help="wave travels right->left")
+    p.add_argument("--mirror", action="store_true", help="flip layout for module mounting")
     _add_common(p)
 
     p = sub.add_parser("dump", help="Read back current LED colors.")
@@ -129,11 +131,16 @@ def main(argv: list[str] | None = None) -> int:
         from .flags import FlagAnimator, FLAGS, render_static
 
         if not args.wave:
-            ctrl.set_all(render_static(FLAGS[args.country], LED_COUNT))
+            frame = render_static(FLAGS[args.country], LED_COUNT)
+            if args.mirror:
+                frame = frame[::-1]
+            ctrl.set_all(frame)
         else:
             import time
 
-            anim = FlagAnimator(args.country, count=LED_COUNT, mode=args.mode, speed=args.speed)
+            anim = FlagAnimator(args.country, count=LED_COUNT, mode=args.mode,
+                                speed=args.speed, direction=-1 if args.reverse else 1,
+                                mirror=args.mirror)
             end = time.time() + args.seconds
             try:
                 while time.time() < end:

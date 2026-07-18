@@ -102,6 +102,14 @@ def test_flags_render_and_animate():
     anim = FlagAnimator("Poland", count=LED_COUNT)
     frame = anim.next_frame()
     assert len(frame) == LED_COUNT and all(len(c) == 3 for c in frame)
+    # mirror flips the layout
+    m = FlagAnimator("Poland", count=LED_COUNT, mirror=True)
+    assert m.next_frame() == FlagAnimator("Poland", count=LED_COUNT).next_frame()[::-1]
+    # direction changes pulse travel sign
+    fwd = FlagAnimator("Poland", count=LED_COUNT, direction=1)
+    rev = FlagAnimator("Poland", count=LED_COUNT, direction=-1)
+    fwd.next_frame(); rev.next_frame()
+    assert round(fwd._pos, 3) == round((-rev._pos) % LED_COUNT, 3)
 
 
 def test_color_parsing():

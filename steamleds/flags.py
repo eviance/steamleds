@@ -72,11 +72,13 @@ class FlagAnimator:
     """Stateful frame generator. Call next_frame() at your frame rate."""
 
     def __init__(self, name: str, count: int = 17, mode: str = "Stadium wave",
-                 speed: float = 1.0):
+                 speed: float = 1.0, direction: int = 1, mirror: bool = False):
         self.set_flag(name)
         self.count = count
         self.mode = mode
         self.speed = speed
+        self.direction = 1 if direction >= 0 else -1   # +1 = L->R, -1 = R->L
+        self.mirror = mirror                           # flip layout for module mounting
         self._phase = 0.0   # 0..1 for scroll
         self._pos = 0.0     # 0..count for stadium pulse
 
@@ -87,9 +89,13 @@ class FlagAnimator:
         self.stripes = FLAGS[name]
 
     def next_frame(self) -> list[RGB]:
+        d = 1 if self.direction >= 0 else -1
         if self.mode == "Waving colors":
-            self._phase = (self._phase + 0.02 * self.speed) % 1.0
-            return frame_scroll(self.stripes, self.count, self._phase)
-        # default: stadium wave
-        self._pos = (self._pos + 0.35 * self.speed) % self.count
-        return frame_stadium(self.stripes, self.count, self._pos)
+            self._phase = (self._phase + 0.02 * self.speed * d) % 1.0
+            frame = frame_scroll(self.stripes, self.count, self._phase)
+        else:  # stadium wave
+            self._pos = (self._pos + 0.35 * self.speed * d) % self.count
+            frame = frame_stadium(self.stripes, self.count, self._pos)
+        if self.mirror:
+            frame = frame[::-1]
+        return frame
