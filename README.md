@@ -23,8 +23,11 @@ and the firmware effects without SteamOS.
   wave (Poland, Ukraine, France, Germany, Italy, … — pick your country)
 - 🔌 **Boot/power-on color** — persist a color that shows from power-on, before login
 - 🔆 Global brightness control (can go brighter than the factory default)
-- 🖥️ Modern dark desktop app (tabs: Colors / Effects / Flags / Animations /
-  Settings), **runs in the system tray**, optional **start-with-Windows**
+- 🖥️ Modern **translucent** dark desktop app (Windows 11 Mica/Acrylic glass,
+  rounded corners, adjustable opacity); tabs: Colors / Effects / Flags /
+  Animations / Settings; **runs in the system tray**, optional **start-with-Windows**
+- 🌍 **7 languages** — English, Polski, Deutsch, Français, Español, 中文, 日本語
+  (with CJK-aware fonts)
 - 🛠️ **Animation builder** — compose Pattern × Motion (scroll/wave/pulse/breathe/
   blink), tune speed/direction/colors, and save named presets
 - ⌨️ Scriptable CLI as well (`python -m steamleds …`)
