@@ -9,6 +9,7 @@ from tkinter import colorchooser, messagebox, ttk
 
 from .colors import RGB, rainbow, to_hex
 from .controller import EFFECTS, LED_COUNT, LedController
+from .flags import MODES, FlagAnimator, flag_names
 from .portio import open_backend
 
 
@@ -18,6 +19,8 @@ class LedPanel(tk.Frame):
         self.ctrl = ctrl
         self.colors: list[RGB] = [(0, 0, 0)] * LED_COUNT
         self.swatches: list[tk.Label] = []
+        self._anim: FlagAnimator | None = None
+        self._anim_job: str | None = None
         self._build()
         self.set_rainbow()  # start with something pretty
 
@@ -62,9 +65,32 @@ class LedPanel(tk.Frame):
         self.p_shift = self._param(fx, "Color shift", 0, 255, 5, 1, 2, self._apply_params)
         self.p_patrol = self._param(fx, "Patrol #", 1, 17, 3, 2, 0, self._apply_params)
 
+        # --- flags / stadium wave ---
+        fl = tk.LabelFrame(self, text="Flag wave (stadium)", padx=8, pady=8)
+        fl.grid(row=4, column=0, sticky="we", pady=(12, 0))
+        ttk.Label(fl, text="Country:").grid(row=0, column=0, sticky="e")
+        self.flag_var = tk.StringVar(value="Poland")
+        fc = ttk.Combobox(fl, textvariable=self.flag_var, values=flag_names(),
+                          width=12, state="readonly")
+        fc.grid(row=0, column=1, padx=(2, 12))
+        fc.bind("<<ComboboxSelected>>", lambda _e: self._anim and self._anim.set_flag(self.flag_var.get()))
+        ttk.Label(fl, text="Style:").grid(row=0, column=2, sticky="e")
+        self.flag_mode = tk.StringVar(value=MODES[0])
+        mc = ttk.Combobox(fl, textvariable=self.flag_mode, values=list(MODES),
+                          width=13, state="readonly")
+        mc.grid(row=0, column=3, padx=(2, 12))
+        mc.bind("<<ComboboxSelected>>", lambda _e: self._set_anim_attr("mode", self.flag_mode.get()))
+        self.flag_btn = ttk.Button(fl, text="Start", command=self.toggle_flag)
+        self.flag_btn.grid(row=0, column=4, padx=4)
+        ttk.Label(fl, text="Speed").grid(row=1, column=0, sticky="e", pady=(6, 0))
+        self.flag_speed = tk.DoubleVar(value=1.0)
+        ttk.Scale(fl, from_=0.2, to=3.0, variable=self.flag_speed, length=180,
+                  command=lambda _v: self._set_anim_attr("speed", float(self.flag_speed.get()))
+                  ).grid(row=1, column=1, columnspan=3, sticky="we", pady=(6, 0))
+
         # --- global brightness ---
         bright = tk.Frame(self)
-        bright.grid(row=4, column=0, sticky="we", pady=(12, 0))
+        bright.grid(row=5, column=0, sticky="we", pady=(12, 0))
         ttk.Label(bright, text="Brightness").pack(side="left")
         self.bright_var = tk.IntVar(value=self.ctrl.brightness_scale)
         ttk.Scale(bright, from_=1, to=255, variable=self.bright_var,
@@ -72,7 +98,7 @@ class LedPanel(tk.Frame):
             side="left", fill="x", expand=True, padx=8)
 
         self.status = tk.Label(self, text="", anchor="w", fg="#666")
-        self.status.grid(row=5, column=0, sticky="we", pady=(10, 0))
+        self.status.grid(row=6, column=0, sticky="we", pady=(10, 0))
 
     def _param(self, parent, label, lo, hi, init, r, c, cb):
         ttk.Label(parent, text=label).grid(row=r + 1, column=c, sticky="e", pady=2)
@@ -94,8 +120,42 @@ class LedPanel(tk.Frame):
         except Exception as exc:
             self.status.configure(text=f"error: {exc}")
 
+    # -- flag animation -----------------------------------------------------
+    def _set_anim_attr(self, attr: str, value) -> None:
+        if self._anim is not None:
+            setattr(self._anim, attr, value)
+
+    def toggle_flag(self) -> None:
+        if self._anim_job is not None:
+            self._stop_anim()
+            return
+        self._anim = FlagAnimator(self.flag_var.get(), count=LED_COUNT,
+                                  mode=self.flag_mode.get(), speed=float(self.flag_speed.get()))
+        self.flag_btn.configure(text="Stop")
+        self.status.configure(text=f"Flag wave: {self.flag_var.get()}")
+        self._flag_tick()
+
+    def _flag_tick(self) -> None:
+        if self._anim is None:
+            return
+        try:
+            self.ctrl.set_all(self._anim.next_frame())
+        except Exception as exc:
+            self.status.configure(text=f"error: {exc}")
+            self._stop_anim()
+            return
+        self._anim_job = self.after(40, self._flag_tick)   # ~25 fps
+
+    def _stop_anim(self) -> None:
+        if self._anim_job is not None:
+            self.after_cancel(self._anim_job)
+        self._anim_job = None
+        self._anim = None
+        self.flag_btn.configure(text="Start")
+
     # -- actions ------------------------------------------------------------
     def _pick(self, index: int) -> None:
+        self._stop_anim()
         rgb, _hexv = colorchooser.askcolor(color=to_hex(self.colors[index]),
                                            title=f"LED {index}")
         if rgb is None:
@@ -106,6 +166,7 @@ class LedPanel(tk.Frame):
         self._push()
 
     def set_rainbow(self) -> None:
+        self._stop_anim()
         self.colors = rainbow(LED_COUNT)
         self._refresh_swatches()
         self.effect_var.set("manual")
@@ -115,12 +176,14 @@ class LedPanel(tk.Frame):
         rgb, _ = colorchooser.askcolor(title="Solid color")
         if rgb is None:
             return
+        self._stop_anim()
         self.colors = [(int(rgb[0]), int(rgb[1]), int(rgb[2]))] * LED_COUNT
         self._refresh_swatches()
         self.effect_var.set("manual")
         self._push()
 
     def turn_off(self) -> None:
+        self._stop_anim()
         self.colors = [(0, 0, 0)] * LED_COUNT
         self._refresh_swatches()
         self._push()
@@ -137,6 +200,7 @@ class LedPanel(tk.Frame):
             self.status.configure(text=f"error: {exc}")
 
     def _apply_effect(self) -> None:
+        self._stop_anim()
         try:
             name = self.effect_var.get()
             self.ctrl.set_effect(name)

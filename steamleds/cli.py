@@ -63,6 +63,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("color", help="#RRGGBB or 'r g b'")
     _add_common(p)
 
+    from .flags import MODES, flag_names
+
+    p = sub.add_parser("flag", help="Show a national flag, static or as a stadium wave.")
+    p.add_argument("country", choices=flag_names())
+    p.add_argument("--wave", action="store_true", help="animate instead of static")
+    p.add_argument("--mode", choices=list(MODES), default=MODES[0])
+    p.add_argument("--seconds", type=float, default=10.0, help="animation duration")
+    p.add_argument("--speed", type=float, default=1.0)
+    _add_common(p)
+
     p = sub.add_parser("dump", help="Read back current LED colors.")
     _add_common(p)
 
@@ -115,6 +125,22 @@ def main(argv: list[str] | None = None) -> int:
     elif args.cmd == "startup":
         ctrl.set_startup(parse_color(args.color),
                          brightness=getattr(args, "brightness", None))
+    elif args.cmd == "flag":
+        from .flags import FlagAnimator, FLAGS, render_static
+
+        if not args.wave:
+            ctrl.set_all(render_static(FLAGS[args.country], LED_COUNT))
+        else:
+            import time
+
+            anim = FlagAnimator(args.country, count=LED_COUNT, mode=args.mode, speed=args.speed)
+            end = time.time() + args.seconds
+            try:
+                while time.time() < end:
+                    ctrl.set_all(anim.next_frame())
+                    time.sleep(0.04)
+            except KeyboardInterrupt:
+                pass
     elif args.cmd == "dump":
         for i, c in enumerate(ctrl.read_all()):
             print(f"LED {i:2d}: {to_hex(c)}")

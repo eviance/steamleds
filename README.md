@@ -19,6 +19,8 @@ and the firmware effects without SteamOS.
 - 🌈 One-shot presets: rainbow, solid color, off
 - ✨ Firmware effects with live parameters: `breath`, `rainbow`, `patrol` (KITT),
   `demo` — plus speed, breath level, color-shift and patrol-count tuning
+- 🏴 **Flag wave** — national flag colors sweeping across the strip like a stadium
+  wave (Poland, Ukraine, France, Germany, Italy, … — pick your country)
 - 🔌 **Boot/power-on color** — persist a color that shows from power-on, before login
 - 🔆 Global brightness control (can go brighter than the factory default)
 - 🖥️ Tkinter GUI **and** a scriptable CLI
@@ -62,6 +64,8 @@ python -m steamleds gradient "#ff0000" "#00ff00" "#0000ff"
 python -m steamleds effect breath --delay 6 --breath 40
 python -m steamleds effect rainbow --shift 8
 python -m steamleds startup "#3300ff"   # boot/power-on color (persists)
+python -m steamleds flag Poland                       # static flag
+python -m steamleds flag Ukraine --wave --seconds 15  # stadium wave
 python -m steamleds off
 python -m steamleds dump            # read back current colors
 python -m steamleds gui             # graphical panel

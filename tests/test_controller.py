@@ -91,6 +91,19 @@ def test_startup_writes_boot_registers():
     assert io.read(BASE + OFF_STARTUP_BRIGHT) == 0x38
 
 
+def test_flags_render_and_animate():
+    from steamleds.flags import FLAGS, FlagAnimator, flag_names, render_static
+
+    assert "Poland" in flag_names()
+    poland = render_static(FLAGS["Poland"], LED_COUNT)
+    assert len(poland) == LED_COUNT
+    assert poland[0] == (255, 255, 255)   # white on the left
+    assert poland[-1] == (220, 20, 60)    # red on the right
+    anim = FlagAnimator("Poland", count=LED_COUNT)
+    frame = anim.next_frame()
+    assert len(frame) == LED_COUNT and all(len(c) == 3 for c in frame)
+
+
 def test_color_parsing():
     assert parse_color("#ff8800") == (255, 136, 0)
     assert parse_color("255 136 0") == (255, 136, 0)
