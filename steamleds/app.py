@@ -59,8 +59,11 @@ class SteamLedsApp(ctk.CTk):
         self.fontfam = i18n.font_family()
 
         self.title("SteamLEDs")
-        self.geometry("580x640")
-        self.minsize(540, 600)
+        sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
+        w, h = 600, min(880, int(sh * 0.92))     # fit the screen height
+        x, y = (sw - w) // 2, max(0, (sh - h) // 3)
+        self.geometry(f"{w}x{h}+{x}+{y}")         # centered
+        self.minsize(560, 560)
         self.configure(fg_color=BG)
 
         self.preview = False
@@ -133,7 +136,11 @@ class SteamLedsApp(ctk.CTk):
                 ("tab.flags", self._tab_flags), ("tab.animations", self._tab_anim),
                 ("tab.settings", self._tab_settings)]
         for key, builder in keys:
-            builder(tabs.add(t(key)))
+            frame = tabs.add(t(key))
+            # scrollable body so all content stays reachable on any screen size
+            body = ctk.CTkScrollableFrame(frame, fg_color="transparent")
+            body.pack(fill="both", expand=True)
+            builder(body)
 
     def _card(self, parent, title=None):
         c = ctk.CTkFrame(parent, fg_color=CARD2, corner_radius=16)
