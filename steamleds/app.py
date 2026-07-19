@@ -5,6 +5,8 @@ effects, and a custom-animation builder.
 """
 from __future__ import annotations
 
+import os
+import sys
 import threading
 import time
 import tkinter as tk
@@ -15,7 +17,7 @@ KOFI_URL = "https://ko-fi.com/eviance"
 
 import customtkinter as ctk
 
-from . import autostart, i18n, sensors, win11
+from . import autostart, fan, i18n, sensors, win11
 from .anim import MOTIONS, PATTERNS, Animation, load_presets, save_presets
 from .colors import RGB, rainbow, to_hex
 from .controller import EFFECTS, LED_COUNT, LedController
@@ -23,28 +25,38 @@ from .flags import MODES, flag_names
 from .i18n import t
 from .portio import DummyBackend, open_backend
 
-BG = "#241d3d"
-CARD = "#2e2650"
-CARD2 = "#3a2f66"
-ACCENT = "#f5a623"
+# flat design palette
+BG = "#191a24"          # flat charcoal
+CARD = "#22232f"        # flat card
+CARD2 = "#2a2b39"       # slightly raised
+ACCENT = "#f5a623"      # single accent (amber)
 ACCENT_HOVER = "#d98e12"
 TEXT = "#ffffff"
-MUTED = "#a89fc9"
-DARKBTN = "#20183a"
+MUTED = "#8b8da5"
+DARKBTN = "#191a24"
+RADIUS = 12             # flat = gentle corners
+
+
+def _asset(name: str) -> str:
+    base = (os.path.join(sys._MEIPASS, "steamleds", "assets")
+            if getattr(sys, "frozen", False)
+            else os.path.join(os.path.dirname(__file__), "assets"))
+    return os.path.join(base, name)
 
 
 def _tray_image():
-    import colorsys
-
     from PIL import Image, ImageDraw
-
-    img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    d.rounded_rectangle([4, 4, 60, 60], radius=16, fill=(58, 47, 102, 255))
-    for i in range(7):
-        r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(i / 7, 1, 1)]
-        d.ellipse([12 + i * 6, 28, 16 + i * 6, 36], fill=(r, g, b, 255))
-    return img
+    try:
+        return Image.open(_asset("icon.png"))
+    except Exception:
+        import colorsys
+        img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        d.rounded_rectangle([4, 4, 60, 60], radius=16, fill=(36, 29, 61, 255))
+        for i in range(5):
+            r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(i / 5, 1, 1)]
+            d.ellipse([14 + i * 8, 28, 20 + i * 8, 34], fill=(r, g, b, 255))
+        return img
 
 
 class SteamLedsApp(ctk.CTk):
@@ -54,11 +66,15 @@ class SteamLedsApp(ctk.CTk):
 
         self.settings = i18n.load_settings()
         i18n.set_language(self.settings.get("language", "en"))
-        self.opacity = float(self.settings.get("opacity", 0.96))
-        self.glass = self.settings.get("glass", "mica")
+        self.opacity = float(self.settings.get("opacity", 1.0))     # flat = opaque by default
+        self.glass = self.settings.get("glass", "none")
         self.fontfam = i18n.font_family()
 
         self.title("SteamLEDs")
+        try:
+            self.iconbitmap(_asset("icon.ico"))
+        except Exception:
+            pass
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
         w, h = 600, min(880, int(sh * 0.92))     # fit the screen height
         x, y = (sw - w) // 2, max(0, (sh - h) // 3)
@@ -143,7 +159,7 @@ class SteamLedsApp(ctk.CTk):
             builder(body)
 
     def _card(self, parent, title=None):
-        c = ctk.CTkFrame(parent, fg_color=CARD2, corner_radius=16)
+        c = ctk.CTkFrame(parent, fg_color=CARD2, corner_radius=RADIUS)
         c.pack(fill="x", padx=6, pady=8)
         if title:
             ctk.CTkLabel(c, text=title, text_color=MUTED,
@@ -405,7 +421,7 @@ class SteamLedsApp(ctk.CTk):
                  ("t0", "Temp 1", "°C", "#29abe0"), ("t1", "Temp 2", "°C", "#7c5cff"),
                  ("t2", "Temp 3", "°C", "#3ac569"), ("t3", "Temp 4", "°C", "#f5a623")]
         for idx, (key, label, unit, color) in enumerate(specs):
-            card = ctk.CTkFrame(grid, fg_color=CARD2, corner_radius=16)
+            card = ctk.CTkFrame(grid, fg_color=CARD2, corner_radius=RADIUS)
             card.grid(row=idx // 2, column=idx % 2, sticky="nsew", padx=6, pady=6)
             ctk.CTkLabel(card, text=label, text_color=MUTED, font=self._font(12)).pack(anchor="w", padx=14, pady=(10, 0))
             val = ctk.CTkLabel(card, text="—", text_color=color, font=self._font(26, True))
@@ -413,8 +429,26 @@ class SteamLedsApp(ctk.CTk):
             ctk.CTkLabel(card, text=unit, text_color=MUTED, font=self._font(10)).pack(anchor="w", padx=14, pady=(0, 10))
             self._tiles[key] = val
 
-        ctk.CTkLabel(tab, text="ℹ  " + t("sys.fanctl"), text_color=MUTED,
-                     font=self._font(11), justify="left").pack(anchor="w", padx=14, pady=(8, 4))
+        # --- fan boost (up only, opt-in) ---
+        fc = self._card(tab, t("sys.fanctl"))
+        self.fan_enable = ctk.CTkCheckBox(fc, text=t("sys.fanen"), font=self._font(12),
+                                          fg_color=ACCENT, command=self._fan_toggle)
+        self.fan_enable.pack(anchor="w", padx=14, pady=(4, 6))
+        fr = ctk.CTkFrame(fc, fg_color="transparent"); fr.pack(fill="x", padx=14, pady=2)
+        ctk.CTkLabel(fr, text=t("sys.fanmin"), text_color=MUTED, width=110,
+                     font=self._font(12)).pack(side="left")
+        self.fan_slider = ctk.CTkSlider(fr, from_=0, to=7000, number_of_steps=70)
+        self.fan_slider.set(0); self.fan_slider.pack(side="left", fill="x", expand=True, padx=8)
+        self.fan_val = ctk.CTkLabel(fr, text="0", text_color=TEXT, width=48, font=self._font(12, True))
+        self.fan_val.pack(side="left")
+        self.fan_slider.configure(command=lambda v: self.fan_val.configure(text=str(int(float(v)))))
+        br = ctk.CTkFrame(fc, fg_color="transparent"); br.pack(fill="x", padx=14, pady=(4, 6))
+        self._accent_btn(br, t("sys.apply"), self._fan_apply, 90).pack(side="left")
+        ctk.CTkButton(br, text=t("sys.auto"), width=90, command=self._fan_auto,
+                      fg_color=CARD, font=self._font(12)).pack(side="left", padx=6)
+        ctk.CTkLabel(fc, text="⚠  " + t("sys.fanwarn"), text_color=MUTED,
+                     font=self._font(11), justify="left").pack(anchor="w", padx=14, pady=(2, 12))
+        self._fan_set_enabled(False)
 
         if getattr(self, "_sys_job", None):
             try:
@@ -434,12 +468,46 @@ class SteamLedsApp(ctk.CTk):
                 v.configure(text="—")
         else:
             temps, fans = data["temps"], data["fans"]
+            self._last_fan = fans[0] if fans else 0
             self._sys_status.configure(text="live ●")
             self._tiles["fan"].configure(text=str(fans[0]) if fans else "—")
             self._tiles["hot"].configure(text=str(max(temps)) if temps else "—")
             for i in range(4):
                 self._tiles[f"t{i}"].configure(text=str(temps[i]) if i < len(temps) else "—")
         self._sys_job = self.after(1000, self._sys_refresh)
+
+    # ---- fan control (up only, opt-in) ----
+    def _fan_set_enabled(self, on: bool):
+        state = "normal" if on else "disabled"
+        try:
+            self.fan_slider.configure(state=state)
+        except Exception:
+            pass
+
+    def _fan_toggle(self):
+        self._fan_set_enabled(bool(self.fan_enable.get()))
+
+    def _fan_apply(self):
+        if not self.fan_enable.get():
+            self._status("enable fan control first"); return
+        if self.preview:
+            self._status(t("sys.nohw")); return
+        floor = int(self.fan_slider.get())
+        measured = getattr(self, "_last_fan", 0)
+        try:
+            ok = fan.boost_to(self.ctrl.io, floor, measured)   # never below measured
+            self._status(f"fan ≥ {max(floor, measured)} RPM" if ok else "fan cmd failed")
+        except Exception as e:
+            self._status(f"fan: {e}")
+
+    def _fan_auto(self):
+        if self.preview:
+            self._status(t("sys.nohw")); return
+        try:
+            fan.auto(self.ctrl.io)
+            self._status(t("sys.auto"))
+        except Exception as e:
+            self._status(f"fan: {e}")
 
     # ---- Settings ----
     def _tab_settings(self, tab):
