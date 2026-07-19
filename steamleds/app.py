@@ -17,7 +17,7 @@ KOFI_URL = "https://ko-fi.com/eviance"
 
 import customtkinter as ctk
 
-from . import autostart, fan, hotkeys, i18n, sensors, win11
+from . import autostart, fan, hotkeys, i18n, reactive, sensors, win11
 from .anim import MOTIONS, PATTERNS, Animation, load_presets, save_presets
 from .colors import RGB, rainbow, to_hex
 from .controller import EFFECTS, LED_COUNT, LedController
@@ -103,6 +103,8 @@ class SteamLedsApp(ctk.CTk):
         self._anim: Animation | None = None
         self._anim_t0 = 0.0
         self._anim_job: str | None = None
+        self._reactive = None
+        self._react_job = None
         self._tray = None
 
         self._ui: ctk.CTkFrame | None = None
@@ -159,6 +161,7 @@ class SteamLedsApp(ctk.CTk):
         tabs.pack(fill="both", expand=True, padx=18, pady=10)
         keys = [("tab.colors", self._tab_colors), ("tab.effects", self._tab_effects),
                 ("tab.flags", self._tab_flags), ("tab.animations", self._tab_anim),
+                ("tab.reactive", self._tab_reactive),
                 ("tab.system", self._tab_system), ("tab.settings", self._tab_settings)]
         for key, builder in keys:
             frame = tabs.add(t(key))
@@ -442,6 +445,47 @@ class SteamLedsApp(ctk.CTk):
         self.preset_menu.set(vals[0] if vals else "")
         self._status(f"{t('anim.delete')}: {name}")
 
+    # ---- Reactive ----
+    def _tab_reactive(self, tab):
+        card = self._card(tab, t("react.title"))
+        for txt, mode in ((t("react.temp"), "temp"), (t("react.load"), "load"),
+                          (t("react.ambient"), "ambient")):
+            self._accent_btn(card, txt, lambda m=mode: self._start_reactive(m), 210).pack(
+                anchor="w", padx=14, pady=6)
+        ctk.CTkButton(card, text=t("btn.off"), command=self._stop_anim, fg_color=CARD,
+                      font=self._font(12)).pack(anchor="w", padx=14, pady=(4, 10))
+        ctk.CTkLabel(card, text="ℹ  " + t("react.info"), text_color=MUTED,
+                     font=self._font(11), justify="left").pack(anchor="w", padx=14, pady=(0, 12))
+
+    def _start_reactive(self, mode):
+        self._stop_anim()
+        self._reactive = mode
+        reactive.cpu_percent()   # prime the delta
+        self._save_last({"kind": "reactive", "mode": mode})
+        self._react_tick()
+        self._status(mode)
+
+    def _react_tick(self):
+        if not getattr(self, "_reactive", None):
+            return
+        mode = self._reactive
+        interval = 200
+        try:
+            if mode == "temp":
+                data = sensors.read_all(self.ctrl.io)
+                if data.get("present") and data["temps"]:
+                    self.ctrl.set_all([reactive.temp_color(max(data["temps"]))] * LED_COUNT)
+                interval = 500
+            elif mode == "load":
+                self.ctrl.set_all(reactive.load_colors(reactive.cpu_percent(), LED_COUNT))
+                interval = 300
+            else:  # ambient
+                self.ctrl.set_all(reactive.screen_colors(LED_COUNT))
+                interval = 150
+        except Exception as e:
+            self._status(f"error: {e}"); self._reactive = None; return
+        self._react_job = self.after(interval, self._react_tick)
+
     # ---- System (sensors) ----
     def _sensor_names(self):
         """Sensor names from EC firmware (once, cached); [] if unavailable."""
@@ -717,6 +761,9 @@ class SteamLedsApp(ctk.CTk):
         """Restore the LED state from the last run; fall back to the default blue."""
         last = self.settings.get("last")
         try:
+            if last and last.get("kind") == "reactive":
+                self._start_reactive(last["mode"])
+                return
             if last and last.get("kind") == "anim":
                 self._play(Animation.from_dict(last["anim"]))
                 return
@@ -750,6 +797,9 @@ class SteamLedsApp(ctk.CTk):
         if self._anim_job is not None:
             self.after_cancel(self._anim_job)
         self._anim_job = None; self._anim = None
+        if getattr(self, "_react_job", None) is not None:
+            self.after_cancel(self._react_job)
+        self._react_job = None; self._reactive = None
 
     # ================= global hotkeys =================
     def _start_hotkeys(self):

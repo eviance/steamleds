@@ -16,8 +16,57 @@ import os
 from .colors import RGB, hsv
 from .flags import FLAGS, render_static
 
-PATTERNS = ("solid", "gradient", "rainbow", "flag")
-MOTIONS = ("static", "scroll", "wave", "pulse", "breathe", "blink")
+PATTERNS = ("solid", "gradient", "rainbow", "flag", "police", "fire")
+MOTIONS = ("static", "scroll", "wave", "pulse", "breathe", "blink", "comet", "twinkle")
+
+_FIRE = [(0, 0, 0), (70, 0, 0), (160, 25, 0), (255, 90, 0), (255, 160, 25), (255, 230, 130)]
+
+
+def _police(n, t, speed):
+    """Blue/red strobe like a police light bar."""
+    half = max(1, n // 2)
+    cyc = int(t * 6.0 * max(0.1, speed)) % 4
+    blue, red, off = (0, 40, 255), (255, 20, 20), (0, 0, 0)
+    out = [off] * n
+    if cyc == 0:
+        for i in range(half):
+            out[i] = blue
+    elif cyc == 2:
+        for i in range(half, n):
+            out[i] = red
+    return out
+
+
+def _fire(n, t, speed):
+    out = []
+    for i in range(n):
+        v = 0.5 + 0.5 * math.sin(t * 5 * speed + i * 1.3) * math.cos(t * 3.1 * speed + i * 0.7)
+        v = max(0.0, min(0.999, v))
+        x = v * (len(_FIRE) - 1)
+        k = int(x)
+        out.append(_lerp(_FIRE[k], _FIRE[k + 1], x - k))
+    return out
+
+
+def _comet(base, n, t, speed, direction):
+    head = (t * speed * 4.0 * (1 if direction >= 0 else -1)) % n
+    color = base[0]
+    out = []
+    for i in range(n):
+        d = (head - i) % n
+        b = max(0.0, 1.0 - d / (n * 0.45))
+        out.append(_scale(color, b * b))
+    return out
+
+
+def _twinkle(base, n, t, speed):
+    out = []
+    for i in range(n):
+        ph = math.sin(t * 3 * speed + i * 12.9898) * 43758.5453
+        frac = ph - math.floor(ph)
+        b = 0.12 + 0.88 * max(0.0, math.sin((t * speed + frac * 6.283) * 2.0)) ** 4
+        out.append(_scale(base[i], b))
+    return out
 
 
 def _scale(c: RGB, m: float) -> RGB:
@@ -71,10 +120,24 @@ class Animation:
 
     # -- animated frame -----------------------------------------------------
     def frame(self, t: float, n: int = 17) -> list[RGB]:
+        sp = max(0.0, self.speed)
+        if self.pattern == "police":
+            out = _police(n, t, sp)
+            return out[::-1] if self.mirror else out
+        if self.pattern == "fire":
+            out = _fire(n, t, sp)
+            return out[::-1] if self.mirror else out
+
         base = self.base_colors(n)
         d = 1 if self.direction >= 0 else -1
-        sp = max(0.0, self.speed)
         m = self.motion
+
+        if m == "comet":
+            out = _comet(base, n, t, sp, self.direction)
+            return out[::-1] if self.mirror else out
+        if m == "twinkle":
+            out = _twinkle(base, n, t, sp)
+            return out[::-1] if self.mirror else out
 
         if m == "scroll":
             # fractional shift + interpolation between neighbours -> smooth flow, no stepping
@@ -137,6 +200,11 @@ def default_presets() -> list[Animation]:
         Animation("Breathe blue", "solid", colors=[(0, 120, 255)], motion="breathe", speed=1.0),
         Animation("Sunset gradient", "gradient",
                   colors=[(255, 94, 0), (255, 0, 128), (80, 0, 200)], motion="scroll", speed=0.6),
+        Animation("Police lights", "police", motion="static", speed=1.0),
+        Animation("Fire", "fire", motion="static", speed=1.0),
+        Animation("Comet", "solid", colors=[(0, 200, 255)], motion="comet", speed=1.0),
+        Animation("Twinkle stars", "gradient",
+                  colors=[(0, 40, 120), (120, 120, 255)], motion="twinkle", speed=1.0),
     ]
 
 
