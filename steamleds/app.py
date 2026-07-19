@@ -17,7 +17,7 @@ KOFI_URL = "https://ko-fi.com/eviance"
 
 import customtkinter as ctk
 
-from . import autostart, fan, i18n, sensors, win11
+from . import autostart, fan, hotkeys, i18n, sensors, win11
 from .anim import MOTIONS, PATTERNS, Animation, load_presets, save_presets
 from .colors import RGB, rainbow, to_hex
 from .controller import EFFECTS, LED_COUNT, LedController
@@ -90,6 +90,7 @@ class SteamLedsApp(ctk.CTk):
             io = DummyBackend()
             self.preview = True
         self.ctrl = LedController(io)
+        self.ctrl.reverse = bool(self.settings.get("reverse", False))
 
         self.colors: list[RGB] = [(0, 0, 0)] * LED_COUNT
         self.presets: list[Animation] = load_presets()
@@ -103,8 +104,10 @@ class SteamLedsApp(ctk.CTk):
         self._build_ui()
         self._set_default()   # start on the standard main blue
 
+        self._hk = None
         self.protocol("WM_DELETE_WINDOW", self.hide_to_tray)
         self._start_tray()
+        self._start_hotkeys()
         self.after(120, self._apply_appearance)
         if start_tray:
             self.after(300, self.hide_to_tray)
@@ -187,9 +190,9 @@ class SteamLedsApp(ctk.CTk):
         row = ctk.CTkFrame(tab, fg_color="transparent")
         row.pack(fill="x", padx=6, pady=(2, 6))
         for txt, cmd in ((t("btn.default"), self._set_default), (t("btn.rainbow"), self._set_rainbow),
-                         (t("btn.solid"), self._set_solid), (t("btn.off"), self._set_off),
-                         (t("btn.boot"), self._set_boot)):
-            self._accent_btn(row, txt, cmd, width=84).pack(side="left", padx=3)
+                         (t("btn.flow"), self._set_flow), (t("btn.solid"), self._set_solid),
+                         (t("btn.off"), self._set_off), (t("btn.boot"), self._set_boot)):
+            self._accent_btn(row, txt, cmd, width=76).pack(side="left", padx=2)
 
         b = self._card(tab, t("lbl.brightness"))
         self.bright = ctk.CTkSlider(b, from_=1, to=255, command=self._on_bright)
@@ -223,6 +226,11 @@ class SteamLedsApp(ctk.CTk):
     def _set_rainbow(self):
         self._stop_anim(); self.colors = rainbow(LED_COUNT)
         self._refresh_sw(); self._push()
+
+    def _set_flow(self):
+        """Flowing rainbow — animated scroll across the strip."""
+        from .anim import Animation
+        self._play(Animation("Rainbow flow", pattern="rainbow", motion="scroll", speed=1.0))
 
     def _set_solid(self):
         rgb, _ = colorchooser.askcolor(title=t("btn.solid"))
@@ -542,7 +550,15 @@ class SteamLedsApp(ctk.CTk):
         self.op_slider = ctk.CTkSlider(orr, from_=0.75, to=1.0, command=self._on_opacity)
         self.op_slider.set(self.opacity); self.op_slider.pack(side="left", fill="x", expand=True, padx=8)
 
+        self.cb_reverse = ctk.CTkCheckBox(ap, text=t("set.reverse"), command=self._toggle_reverse,
+                                          fg_color=ACCENT, font=self._font(12))
+        if self.ctrl.reverse:
+            self.cb_reverse.select()
+        self.cb_reverse.pack(anchor="w", padx=14, pady=(4, 12))
+
         c = self._card(tab, t("set.startup"))
+        ctk.CTkLabel(c, text="⌨  " + t("set.hotkeys"), text_color=MUTED, justify="left",
+                     font=self._font(11)).pack(anchor="w", padx=14, pady=(10, 2))
         self.cb_autostart = ctk.CTkCheckBox(c, text=t("set.autostart"), command=self._toggle_autostart,
                                             fg_color=ACCENT, font=self._font(12))
         if autostart.is_enabled():
@@ -570,6 +586,12 @@ class SteamLedsApp(ctk.CTk):
         self.fontfam = i18n.font_family()
         self._save_setting(language=code)
         self._build_ui()   # rebuild everything in the new language/font
+
+    def _toggle_reverse(self):
+        self.ctrl.reverse = bool(self.cb_reverse.get())
+        self._save_setting(reverse=self.ctrl.reverse)
+        if self._anim is None:
+            self._push()   # re-apply static colors in the new orientation
 
     def _on_glass(self, val):
         self.glass = val
@@ -619,6 +641,25 @@ class SteamLedsApp(ctk.CTk):
             self.after_cancel(self._anim_job)
         self._anim_job = None; self._anim = None
 
+    # ================= global hotkeys =================
+    def _start_hotkeys(self):
+        try:
+            mod = hotkeys.MOD_CONTROL | hotkeys.MOD_ALT
+            binds = [
+                (mod, hotkeys.VK["O"], lambda: self.after(0, self._hk_toggle)),
+                (mod, hotkeys.VK["R"], lambda: self.after(0, self._set_flow)),
+            ]
+            self._hk = hotkeys.HotkeyManager(binds)
+            self._hk.start()
+        except Exception:
+            self._hk = None
+
+    def _hk_toggle(self):
+        if all(c == (0, 0, 0) for c in self.colors):
+            self._set_default()      # off -> main blue
+        else:
+            self._set_off()          # on -> off
+
     # ================= tray =================
     def _start_tray(self):
         try:
@@ -647,6 +688,11 @@ class SteamLedsApp(ctk.CTk):
 
     def quit_app(self):
         self._stop_anim()
+        if self._hk is not None:
+            try:
+                self._hk.stop()
+            except Exception:
+                pass
         if getattr(self, "_sys_job", None):
             try:
                 self.after_cancel(self._sys_job)

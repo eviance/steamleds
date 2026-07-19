@@ -52,11 +52,17 @@ DEFAULT_BRIGHTNESS_SCALE = 0x37  # 55, matches the factory/BIOS setting
 
 
 class LedController:
-    def __init__(self, io: PortIO, brightness_scale: int = DEFAULT_BRIGHTNESS_SCALE):
+    def __init__(self, io: PortIO, brightness_scale: int = DEFAULT_BRIGHTNESS_SCALE,
+                 reverse: bool = False):
         self.io = io
         self._scale = max(0, min(255, brightness_scale))
+        # flip logical->physical LED order to match how the strip is mounted
+        self.reverse = reverse
         # remember the last raw colors so brightness changes can re-apply them
         self._raw: list[RGB] = [(0, 0, 0)] * LED_COUNT
+
+    def _phys(self, index: int) -> int:
+        return (LED_COUNT - 1 - index) if self.reverse else index
 
     # -- low level ----------------------------------------------------------
     def _write_rgb(self, block_off: int, index: int, color: RGB) -> None:
@@ -88,8 +94,9 @@ class LedController:
         if not 0 <= index < LED_COUNT:
             raise IndexError(f"LED index {index} out of range 0..{LED_COUNT - 1}")
         self._raw[index] = color
-        self._write_rgb(OFF_BLOCK_B, index, color)          # raw target
-        self._write_rgb(OFF_BLOCK_A, index, self._scaled(color))  # driven PWM
+        phys = self._phys(index)
+        self._write_rgb(OFF_BLOCK_B, phys, color)          # raw target
+        self._write_rgb(OFF_BLOCK_A, phys, self._scaled(color))  # driven PWM
 
     def set_all(self, colors: list[RGB]) -> None:
         if len(colors) != LED_COUNT:
@@ -113,7 +120,7 @@ class LedController:
         self.io.write(BASE + OFF_BRIGHTNESS_SCALE, self._scale)
         if reapply:
             for i, c in enumerate(self._raw):
-                self._write_rgb(OFF_BLOCK_A, i, self._scaled(c))
+                self._write_rgb(OFF_BLOCK_A, self._phys(i), self._scaled(c))
 
     def set_effect(self, name: str) -> None:
         key = name.lower()
