@@ -107,7 +107,7 @@ class SteamLedsApp(ctk.CTk):
 
         self._ui: ctk.CTkFrame | None = None
         self._build_ui()
-        self._set_default()   # start on the standard main blue
+        self._restore_last()   # remember the last state across restarts
 
         self._hk = None
         self.protocol("WM_DELETE_WINDOW", self.hide_to_tray)
@@ -159,8 +159,7 @@ class SteamLedsApp(ctk.CTk):
         tabs.pack(fill="both", expand=True, padx=18, pady=10)
         keys = [("tab.colors", self._tab_colors), ("tab.effects", self._tab_effects),
                 ("tab.flags", self._tab_flags), ("tab.animations", self._tab_anim),
-                ("tab.system", self._tab_system), ("tab.support", self._tab_support),
-                ("tab.settings", self._tab_settings)]
+                ("tab.system", self._tab_system), ("tab.settings", self._tab_settings)]
         for key, builder in keys:
             frame = tabs.add(t(key))
             # scrollable body so all content stays reachable on any screen size
@@ -213,6 +212,7 @@ class SteamLedsApp(ctk.CTk):
     def _push(self):
         try:
             self.ctrl.set_all(self.colors)
+            self._save_last({"kind": "static", "colors": [list(c) for c in self.colors]})
             self._status(t("app.applied"))
         except Exception as e:
             self._status(f"error: {e}")
@@ -345,9 +345,12 @@ class SteamLedsApp(ctk.CTk):
                                              command=self._load_preset, width=190, fg_color=CARD,
                                              button_color=ACCENT, font=self._font(12))
         self.preset_menu.pack(side="left")
-        self._accent_btn(r, t("common.play") + " ▶", self._builder_play, 70).pack(side="left", padx=6)
-        ctk.CTkButton(r, text=t("common.stop") + " ■", width=70, command=self._stop_anim,
+        self._accent_btn(r, t("common.play") + " ▶", self._builder_play, 64).pack(side="left", padx=6)
+        ctk.CTkButton(r, text=t("common.stop") + " ■", width=58, command=self._stop_anim,
                       fg_color=CARD, font=self._font(12)).pack(side="left")
+        ctk.CTkButton(r, text="🗑", width=34, command=self._delete_preset,
+                      fg_color="#7a2b2b", hover_color="#5e2020",
+                      font=self._font(12)).pack(side="left", padx=6)
 
         b = self._card(tab, t("anim.build"))
         g = ctk.CTkFrame(b, fg_color="transparent"); g.pack(fill="x", padx=14, pady=8)
@@ -427,6 +430,17 @@ class SteamLedsApp(ctk.CTk):
                 self.b_dir.set("L → R" if p.direction >= 0 else "R → L")
                 (self.b_mirror.select if p.mirror else self.b_mirror.deselect)()
                 self._play(p); break
+
+    def _delete_preset(self):
+        name = self.preset_menu.get()
+        if not name:
+            return
+        self.presets = [p for p in self.presets if p.name != name]
+        save_presets(self.presets)
+        vals = [p.name for p in self.presets]
+        self.preset_menu.configure(values=vals)
+        self.preset_menu.set(vals[0] if vals else "")
+        self._status(f"{t('anim.delete')}: {name}")
 
     # ---- System (sensors) ----
     def _sensor_names(self):
@@ -636,7 +650,19 @@ class SteamLedsApp(ctk.CTk):
                       hover_color="#e04b48", text_color="#ffffff",
                       font=self._font(13, True), height=40).pack(anchor="w", padx=14, pady=(4, 6))
         ctk.CTkLabel(cs, text="ko-fi.com/eviance", text_color=MUTED,
-                     font=self._font(11)).pack(anchor="w", padx=14, pady=(0, 12))
+                     font=self._font(11)).pack(anchor="w", padx=14, pady=(0, 8))
+        # sponsors list (moved here from a separate tab)
+        ctk.CTkLabel(cs, text=t("sup.title"), text_color=MUTED,
+                     font=self._font(12, True)).pack(anchor="w", padx=14, pady=(2, 2))
+        for i, (name, tier) in enumerate(self._load_sponsors(), start=1):
+            row = ctk.CTkFrame(cs, fg_color=CARD, corner_radius=RADIUS)
+            row.pack(fill="x", padx=10, pady=4)
+            badge = "👑" if i == 1 else "☕"
+            ctk.CTkLabel(row, text=f"{badge}  {name}", text_color=TEXT,
+                         font=self._font(14, True)).pack(anchor="w", padx=12, pady=(6, 0))
+            ctk.CTkLabel(row, text=tier, text_color=MUTED,
+                         font=self._font(11)).pack(anchor="w", padx=12, pady=(0, 6))
+        ctk.CTkLabel(cs, text="", height=2).pack()
 
         c2 = self._card(tab, t("set.about"))
         ctk.CTkLabel(c2, text=t("set.previewinfo") if self.preview else t("set.hwok"),
@@ -683,11 +709,31 @@ class SteamLedsApp(ctk.CTk):
         except Exception as e:
             self._status(f"autostart: {e}")
 
+    # ================= last-state persistence =================
+    def _save_last(self, state: dict):
+        self._save_setting(last=state)
+
+    def _restore_last(self):
+        """Restore the LED state from the last run; fall back to the default blue."""
+        last = self.settings.get("last")
+        try:
+            if last and last.get("kind") == "anim":
+                self._play(Animation.from_dict(last["anim"]))
+                return
+            if last and last.get("kind") == "static":
+                self.colors = [tuple(c) for c in last["colors"]]
+                self._refresh_sw(); self._push()
+                return
+        except Exception:
+            pass
+        self._set_default()
+
     # ================= animation loop =================
     def _play(self, anim: Animation):
         self._anim = anim; self._anim_t0 = time.perf_counter()
         if self._anim_job is None:
             self._tick()
+        self._save_last({"kind": "anim", "anim": anim.to_dict()})
         self._status(anim.name)
 
     def _tick(self):

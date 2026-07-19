@@ -102,8 +102,10 @@ class LedController:
             raise IndexError(f"LED index {index} out of range 0..{LED_COUNT - 1}")
         self._raw[index] = color
         phys = self._phys(index)
-        self._write_rgb(OFF_BLOCK_B, phys, color)          # raw target
-        self._write_rgb(OFF_BLOCK_A, phys, self._scaled(color))  # driven PWM
+        # Write ONLY block B (the raw source). The EC continuously recomputes
+        # block A = B * brightness_scale / 255 itself, so writing A here just
+        # races the EC and makes LEDs flicker/blink during animations.
+        self._write_rgb(OFF_BLOCK_B, phys, color)
 
     def set_all(self, colors: list[RGB]) -> None:
         if len(colors) != LED_COUNT:
@@ -124,10 +126,8 @@ class LedController:
 
     def set_brightness_scale(self, scale: int, reapply: bool = True) -> None:
         self._scale = max(0, min(255, scale))
+        # The EC recomputes block A from B using this scale, so just set it.
         self.io.write(BASE + OFF_BRIGHTNESS_SCALE, self._scale)
-        if reapply:
-            for i, c in enumerate(self._raw):
-                self._write_rgb(OFF_BLOCK_A, self._phys(i), self._scaled(c))
 
     def set_effect(self, name: str) -> None:
         key = name.lower()
