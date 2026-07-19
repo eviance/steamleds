@@ -38,7 +38,9 @@ RADIUS = 12             # flat = gentle corners
 DEFAULT_COLOR = (0, 122, 255)   # the standard "main" blue the panel restores to
 # This EC doesn't expose sensor names, so we ship sensible labels for the 4 EC temps.
 # Override per-machine in %APPDATA%/steamleds/sensor_names.json (a JSON list of strings).
-DEFAULT_TEMP_LABELS = ["CPU", "GPU", "Board", "Ambient"]
+# Verified by CPU-load correlation on the EC: sensor 0/1 track the processor,
+# sensor 2 is the GPU, sensor 3 the board.
+DEFAULT_TEMP_LABELS = ["CPU", "SoC", "GPU", "Board"]
 
 
 def _asset(name: str) -> str:
