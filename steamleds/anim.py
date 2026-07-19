@@ -77,8 +77,13 @@ class Animation:
         m = self.motion
 
         if m == "scroll":
-            shift = (sp * t * 3.0 * d) % n
-            out = [base[int((i - shift) % n)] for i in range(n)]
+            # fractional shift + interpolation between neighbours -> smooth flow, no stepping
+            shift = (sp * t * 1.2 * d) % n
+            out = []
+            for i in range(n):
+                pos = (i - shift) % n
+                k = int(pos)
+                out.append(_lerp(base[k % n], base[(k + 1) % n], pos - k))
         elif m == "wave":
             pos = (sp * t * 6.0 * d) % n
             out = []

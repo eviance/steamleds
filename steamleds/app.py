@@ -90,7 +90,7 @@ class SteamLedsApp(ctk.CTk):
             io = DummyBackend()
             self.preview = True
         self.ctrl = LedController(io)
-        self.ctrl.reverse = bool(self.settings.get("reverse", False))
+        self.ctrl.reverse = bool(self.settings.get("reverse", True))   # default matches this panel
 
         self.colors: list[RGB] = [(0, 0, 0)] * LED_COUNT
         self.presets: list[Animation] = load_presets()
