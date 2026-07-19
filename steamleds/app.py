@@ -36,6 +36,9 @@ MUTED = "#8b8da5"
 DARKBTN = "#191a24"
 RADIUS = 12             # flat = gentle corners
 DEFAULT_COLOR = (0, 122, 255)   # the standard "main" blue the panel restores to
+# This EC doesn't expose sensor names, so we ship sensible labels for the 4 EC temps.
+# Override per-machine in %APPDATA%/steamleds/sensor_names.json (a JSON list of strings).
+DEFAULT_TEMP_LABELS = ["CPU", "GPU", "Board", "Ambient"]
 
 
 def _asset(name: str) -> str:
@@ -154,7 +157,8 @@ class SteamLedsApp(ctk.CTk):
         tabs.pack(fill="both", expand=True, padx=18, pady=10)
         keys = [("tab.colors", self._tab_colors), ("tab.effects", self._tab_effects),
                 ("tab.flags", self._tab_flags), ("tab.animations", self._tab_anim),
-                ("tab.system", self._tab_system), ("tab.settings", self._tab_settings)]
+                ("tab.system", self._tab_system), ("tab.support", self._tab_support),
+                ("tab.settings", self._tab_settings)]
         for key, builder in keys:
             frame = tabs.add(t(key))
             # scrollable body so all content stays reachable on any screen size
@@ -435,6 +439,31 @@ class SteamLedsApp(ctk.CTk):
                 self._names = []
         return self._names
 
+    def _temp_labels(self):
+        """Tile labels for the 4 EC temps: user override -> EC firmware -> defaults."""
+        override = []
+        try:
+            base = os.environ.get("APPDATA") or os.path.expanduser("~")
+            p = os.path.join(base, "steamleds", "sensor_names.json")
+            if os.path.exists(p):
+                import json
+                with open(p, encoding="utf-8") as fh:
+                    override = json.load(fh)
+        except Exception:
+            override = []
+        fw = self._sensor_names()
+        out = []
+        for k in range(4):
+            if k < len(override) and override[k]:
+                out.append(str(override[k]))
+            elif k < len(fw) and fw[k]:
+                out.append(fw[k])
+            elif k < len(DEFAULT_TEMP_LABELS):
+                out.append(DEFAULT_TEMP_LABELS[k])
+            else:
+                out.append(f"Temp {k + 1}")
+        return out
+
     def _tab_system(self, tab):
         head = self._card(tab, t("sys.temps"))
         self._sys_status = ctk.CTkLabel(head, text="…", text_color=MUTED, font=self._font(11))
@@ -444,14 +473,10 @@ class SteamLedsApp(ctk.CTk):
         grid.pack(fill="x", padx=6, pady=4)
         grid.grid_columnconfigure((0, 1), weight=1)
         self._tiles = {}
-        nm = self._sensor_names()
-
-        def tlabel(k):
-            return nm[k] if k < len(nm) and nm[k] else f"Temp {k + 1}"
-
+        lbl = self._temp_labels()
         specs = [("fan", t("sys.fan"), "RPM", ACCENT), ("hot", t("sys.hottest"), "°C", "#ff5e5b"),
-                 ("t0", tlabel(0), "°C", "#29abe0"), ("t1", tlabel(1), "°C", "#7c5cff"),
-                 ("t2", tlabel(2), "°C", "#3ac569"), ("t3", tlabel(3), "°C", "#f5a623")]
+                 ("t0", lbl[0], "°C", "#29abe0"), ("t1", lbl[1], "°C", "#7c5cff"),
+                 ("t2", lbl[2], "°C", "#3ac569"), ("t3", lbl[3], "°C", "#f5a623")]
         for idx, (key, label, unit, color) in enumerate(specs):
             card = ctk.CTkFrame(grid, fg_color=CARD2, corner_radius=RADIUS)
             card.grid(row=idx // 2, column=idx % 2, sticky="nsew", padx=6, pady=6)
@@ -461,26 +486,8 @@ class SteamLedsApp(ctk.CTk):
             ctk.CTkLabel(card, text=unit, text_color=MUTED, font=self._font(10)).pack(anchor="w", padx=14, pady=(0, 10))
             self._tiles[key] = val
 
-        # --- fan boost (up only, opt-in) ---
-        fc = self._card(tab, t("sys.fanctl"))
-        self.fan_enable = ctk.CTkCheckBox(fc, text=t("sys.fanen"), font=self._font(12),
-                                          fg_color=ACCENT, command=self._fan_toggle)
-        self.fan_enable.pack(anchor="w", padx=14, pady=(4, 6))
-        fr = ctk.CTkFrame(fc, fg_color="transparent"); fr.pack(fill="x", padx=14, pady=2)
-        ctk.CTkLabel(fr, text=t("sys.fanmin"), text_color=MUTED, width=110,
-                     font=self._font(12)).pack(side="left")
-        self.fan_slider = ctk.CTkSlider(fr, from_=0, to=7000, number_of_steps=70)
-        self.fan_slider.set(0); self.fan_slider.pack(side="left", fill="x", expand=True, padx=8)
-        self.fan_val = ctk.CTkLabel(fr, text="0", text_color=TEXT, width=48, font=self._font(12, True))
-        self.fan_val.pack(side="left")
-        self.fan_slider.configure(command=lambda v: self.fan_val.configure(text=str(int(float(v)))))
-        br = ctk.CTkFrame(fc, fg_color="transparent"); br.pack(fill="x", padx=14, pady=(4, 6))
-        self._accent_btn(br, t("sys.apply"), self._fan_apply, 90).pack(side="left")
-        ctk.CTkButton(br, text=t("sys.auto"), width=90, command=self._fan_auto,
-                      fg_color=CARD, font=self._font(12)).pack(side="left", padx=6)
-        ctk.CTkLabel(fc, text="⚠  " + t("sys.fanwarn"), text_color=MUTED,
-                     font=self._font(11), justify="left").pack(anchor="w", padx=14, pady=(2, 12))
-        self._fan_set_enabled(False)
+        # Fan control is monitoring-only on this EC (its command interface isn't the
+        # standard cros_ec host-command path), so no boost slider is shown.
 
         if getattr(self, "_sys_job", None):
             try:
@@ -528,7 +535,8 @@ class SteamLedsApp(ctk.CTk):
         measured = getattr(self, "_last_fan", 0)
         try:
             ok = fan.boost_to(self.ctrl.io, floor, measured)   # never below measured
-            self._status(f"fan ≥ {max(floor, measured)} RPM" if ok else "fan cmd failed")
+            self._status(f"fan ≥ {max(floor, measured)} RPM" if ok
+                         else "fan control not supported on this EC (yet)")
         except Exception as e:
             self._status(f"fan: {e}")
 
@@ -540,6 +548,43 @@ class SteamLedsApp(ctk.CTk):
             self._status(t("sys.auto"))
         except Exception as e:
             self._status(f"fan: {e}")
+
+    # ---- Support / Sponsors ----
+    def _load_sponsors(self):
+        """First sponsor = the creator; more can be added to %APPDATA%/steamleds/sponsors.json."""
+        sponsors = [("Mr. Boguś", t("sup.creator"))]
+        try:
+            base = os.environ.get("APPDATA") or os.path.expanduser("~")
+            p = os.path.join(base, "steamleds", "sponsors.json")
+            if os.path.exists(p):
+                import json
+                with open(p, encoding="utf-8") as fh:
+                    for s in json.load(fh):
+                        sponsors.append((s.get("name", "?"), s.get("tier", "Sponsor")))
+        except Exception:
+            pass
+        return sponsors
+
+    def _tab_support(self, tab):
+        top = self._card(tab, t("set.support"))
+        ctk.CTkButton(top, text=t("set.kofi"), command=self._open_kofi, fg_color="#ff5e5b",
+                      hover_color="#e04b48", text_color="#ffffff", height=40,
+                      font=self._font(13, True)).pack(anchor="w", padx=14, pady=(4, 4))
+        ctk.CTkLabel(top, text="ko-fi.com/eviance", text_color=MUTED,
+                     font=self._font(11)).pack(anchor="w", padx=14, pady=(0, 12))
+
+        card = self._card(tab, t("sup.title"))
+        for i, (name, tier) in enumerate(self._load_sponsors(), start=1):
+            row = ctk.CTkFrame(card, fg_color=CARD, corner_radius=RADIUS)
+            row.pack(fill="x", padx=10, pady=5)
+            badge = "👑" if i == 1 else "☕"
+            ctk.CTkLabel(row, text=f"{badge}  {name}", text_color=TEXT,
+                         font=self._font(15, True)).pack(anchor="w", padx=12, pady=(8, 0))
+            ctk.CTkLabel(row, text=tier, text_color=MUTED,
+                         font=self._font(11)).pack(anchor="w", padx=12, pady=(0, 8))
+        ctk.CTkLabel(card, text="", height=2).pack()
+        ctk.CTkLabel(tab, text=t("sup.thanks"), text_color=MUTED,
+                     font=self._font(11)).pack(anchor="w", padx=14, pady=(8, 4))
 
     # ---- Settings ----
     def _tab_settings(self, tab):

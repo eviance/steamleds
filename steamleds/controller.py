@@ -60,6 +60,8 @@ class LedController:
         self.reverse = reverse
         # remember the last raw colors so brightness changes can re-apply them
         self._raw: list[RGB] = [(0, 0, 0)] * LED_COUNT
+        # track effect mode so we don't rewrite the effect register every frame
+        self._is_manual = False
 
     def _phys(self, index: int) -> int:
         return (LED_COUNT - 1 - index) if self.reverse else index
@@ -86,9 +88,14 @@ class LedController:
         return self._scale
 
     def ensure_manual(self) -> None:
-        """Put the panel in manual mode so per-LED colors are shown as-is."""
+        """Put the panel in manual mode -- but only write the effect register when
+        the mode actually changes, so animations don't re-trigger it every frame
+        (which makes the EC blink/reset individual LEDs)."""
+        if self._is_manual:
+            return
         self.io.write(BASE + OFF_EFFECT, EFFECTS["manual"])
         self.io.write(BASE + OFF_EFFECT_MIRROR, EFFECTS["manual"])
+        self._is_manual = True
 
     def set_led(self, index: int, color: RGB) -> None:
         if not 0 <= index < LED_COUNT:
@@ -128,6 +135,7 @@ class LedController:
             raise ValueError(f"Unknown effect {name!r}; choose from {list(EFFECTS)}")
         self.io.write(BASE + OFF_EFFECT, EFFECTS[key])
         self.io.write(BASE + OFF_EFFECT_MIRROR, EFFECTS[key])
+        self._is_manual = (key == "manual")
 
     def set_effect_params(
         self,
