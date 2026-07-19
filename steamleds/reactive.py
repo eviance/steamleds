@@ -58,3 +58,17 @@ def screen_colors(n: int) -> list[RGB]:
 
     img = ImageGrab.grab().resize((n, 1)).convert("RGB")
     return [img.getpixel((i, 0)) for i in range(n)]
+
+
+def mouse_colors(n: int, color: RGB = (0, 180, 255)) -> list[RGB]:
+    """A glowing dot that follows the horizontal mouse position across the strip."""
+    pt = wt.POINT()
+    ctypes.windll.user32.GetCursorPos(ctypes.byref(pt))
+    sw = ctypes.windll.user32.GetSystemMetrics(0) or 1920
+    frac = max(0.0, min(1.0, pt.x / max(1, sw)))
+    pos = frac * (n - 1)
+    out: list[RGB] = []
+    for i in range(n):
+        b = max(0.0, 1.0 - abs(i - pos) / 2.0)   # ~2-LED glow radius
+        out.append((int(color[0] * b), int(color[1] * b), int(color[2] * b)))
+    return out

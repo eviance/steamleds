@@ -23,17 +23,17 @@ _FIRE = [(0, 0, 0), (70, 0, 0), (160, 25, 0), (255, 90, 0), (255, 160, 25), (255
 
 
 def _police(n, t, speed):
-    """Blue/red strobe like a police light bar."""
+    """Police light bar: left half blue, right half red, brightness alternating."""
     half = max(1, n // 2)
-    cyc = int(t * 6.0 * max(0.1, speed)) % 4
-    blue, red, off = (0, 40, 255), (255, 20, 20), (0, 0, 0)
-    out = [off] * n
-    if cyc == 0:
-        for i in range(half):
-            out[i] = blue
-    elif cyc == 2:
-        for i in range(half, n):
-            out[i] = red
+    ph = int(t * 4.0 * max(0.1, speed)) % 2
+    b_hi, b_lo = (0, 60, 255), (0, 10, 60)
+    r_hi, r_lo = (255, 30, 30), (60, 5, 5)
+    out = []
+    for i in range(n):
+        if i < half:
+            out.append(b_hi if ph == 0 else b_lo)
+        else:
+            out.append(r_hi if ph == 1 else r_lo)
     return out
 
 
@@ -41,7 +41,8 @@ def _fire(n, t, speed):
     out = []
     for i in range(n):
         v = 0.5 + 0.5 * math.sin(t * 5 * speed + i * 1.3) * math.cos(t * 3.1 * speed + i * 0.7)
-        v = max(0.0, min(0.999, v))
+        v = 0.3 + 0.7 * max(0.0, min(1.0, v))   # lift the floor so it always reads as fire
+        v = min(0.999, v)
         x = v * (len(_FIRE) - 1)
         k = int(x)
         out.append(_lerp(_FIRE[k], _FIRE[k + 1], x - k))
@@ -215,9 +216,15 @@ def load_presets() -> list[Animation]:
         return default_presets()
     try:
         with open(path, encoding="utf-8") as fh:
-            return [Animation.from_dict(d) for d in json.load(fh)]
+            saved = [Animation.from_dict(d) for d in json.load(fh)]
     except Exception:
         return default_presets()
+    # add any newly-shipped default presets the user's file doesn't have yet
+    names = {p.name for p in saved}
+    for d in default_presets():
+        if d.name not in names:
+            saved.append(d)
+    return saved
 
 
 def save_presets(presets: list[Animation]) -> None:

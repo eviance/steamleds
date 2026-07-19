@@ -14,6 +14,7 @@ import webbrowser
 from tkinter import colorchooser
 
 KOFI_URL = "https://ko-fi.com/eviance"
+APP_VERSION = "1.10"
 
 import customtkinter as ctk
 
@@ -327,7 +328,9 @@ class SteamLedsApp(ctk.CTk):
         r3 = ctk.CTkFrame(card, fg_color="transparent"); r3.pack(fill="x", padx=14, pady=8)
         ctk.CTkLabel(r3, text=t("common.speed"), text_color=MUTED, width=60,
                      font=self._font(12)).pack(side="left")
-        self.flag_speed = ctk.CTkSlider(r3, from_=0.2, to=3.0); self.flag_speed.set(1.0)
+        self.flag_speed = ctk.CTkSlider(r3, from_=0.2, to=3.0,
+                                        command=lambda v: self._live_speed(v))
+        self.flag_speed.set(1.0)
         self.flag_speed.pack(side="left", fill="x", expand=True, padx=8)
 
         self._accent_btn(card, t("common.start") + " ▶", self._flag_start, width=120).pack(pady=(4, 12))
@@ -375,7 +378,9 @@ class SteamLedsApp(ctk.CTk):
 
         s = ctk.CTkFrame(b, fg_color="transparent"); s.pack(fill="x", padx=14, pady=6)
         ctk.CTkLabel(s, text=t("common.speed"), text_color=MUTED, width=60, font=self._font(12)).pack(side="left")
-        self.b_speed = ctk.CTkSlider(s, from_=0.2, to=3.0); self.b_speed.set(1.0)
+        self.b_speed = ctk.CTkSlider(s, from_=0.2, to=3.0,
+                                     command=lambda v: self._live_speed(v))
+        self.b_speed.set(1.0)
         self.b_speed.pack(side="left", fill="x", expand=True, padx=8)
         self.b_dir = ctk.CTkOptionMenu(s, values=["L → R", "R → L"], width=80, fg_color=CARD,
                                        button_color=ACCENT, font=self._font(12))
@@ -449,7 +454,7 @@ class SteamLedsApp(ctk.CTk):
     def _tab_reactive(self, tab):
         card = self._card(tab, t("react.title"))
         for txt, mode in ((t("react.temp"), "temp"), (t("react.load"), "load"),
-                          (t("react.ambient"), "ambient")):
+                          (t("react.ambient"), "ambient"), (t("react.mouse"), "mouse")):
             self._accent_btn(card, txt, lambda m=mode: self._start_reactive(m), 210).pack(
                 anchor="w", padx=14, pady=6)
         ctk.CTkButton(card, text=t("btn.off"), command=self._stop_anim, fg_color=CARD,
@@ -479,6 +484,9 @@ class SteamLedsApp(ctk.CTk):
             elif mode == "load":
                 self.ctrl.set_all(reactive.load_colors(reactive.cpu_percent(), LED_COUNT))
                 interval = 300
+            elif mode == "mouse":
+                self.ctrl.set_all(reactive.mouse_colors(LED_COUNT))
+                interval = 60
             else:  # ambient
                 self.ctrl.set_all(reactive.screen_colors(LED_COUNT))
                 interval = 150
@@ -709,8 +717,10 @@ class SteamLedsApp(ctk.CTk):
         ctk.CTkLabel(cs, text="", height=2).pack()
 
         c2 = self._card(tab, t("set.about"))
+        ctk.CTkLabel(c2, text=f"SteamLEDs  ·  {t('set.version')} {APP_VERSION}",
+                     text_color=TEXT, font=self._font(13, True)).pack(anchor="w", padx=14, pady=(8, 0))
         ctk.CTkLabel(c2, text=t("set.previewinfo") if self.preview else t("set.hwok"),
-                     text_color=MUTED, font=self._font(12)).pack(anchor="w", padx=14, pady=8)
+                     text_color=MUTED, font=self._font(12)).pack(anchor="w", padx=14, pady=(2, 8))
         ctk.CTkButton(c2, text=t("set.quit"), command=self.quit_app, fg_color="#7a2b2b",
                       hover_color="#5e2020", font=self._font(12)).pack(anchor="w", padx=14, pady=(0, 12))
 
@@ -774,6 +784,11 @@ class SteamLedsApp(ctk.CTk):
         except Exception:
             pass
         self._set_default()
+
+    def _live_speed(self, v):
+        """Live-update the speed of a running animation from a speed slider."""
+        if self._anim is not None:
+            self._anim.speed = float(v)
 
     # ================= animation loop =================
     def _play(self, anim: Animation):

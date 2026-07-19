@@ -126,8 +126,12 @@ class LedController:
 
     def set_brightness_scale(self, scale: int, reapply: bool = True) -> None:
         self._scale = max(0, min(255, scale))
-        # The EC recomputes block A from B using this scale, so just set it.
         self.io.write(BASE + OFF_BRIGHTNESS_SCALE, self._scale)
+        # The EC recomputes block A (=B*scale/255) only when block B is written, so
+        # re-apply the current colours to make the new brightness take effect now.
+        if reapply:
+            for i, c in enumerate(self._raw):
+                self._write_rgb(OFF_BLOCK_B, self._phys(i), c)
 
     def set_effect(self, name: str) -> None:
         key = name.lower()
