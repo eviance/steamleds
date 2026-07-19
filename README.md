@@ -23,7 +23,9 @@ them on Windows. **SteamLEDs fixes that.** I reverse-engineered how SteamOS's ke
 driver talks to the board's embedded controller, confirmed it on real hardware, and
 rebuilt the whole thing as a modern Windows app.
 
-> 📸 _Add a screenshot here → `docs/screenshot.png`_
+<div align="center">
+  <img src="docs/screenshot.png" width="620" alt="SteamLEDs app — Colors tab" />
+</div>
 
 ## ✨ Features
 
