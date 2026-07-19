@@ -48,6 +48,7 @@ STRINGS: dict[str, dict[str, str]] = {
     "sys.auto":        {"en": "Auto (EC)", "pl": "Auto (EC)", "de": "Auto (EC)", "fr": "Auto (EC)", "es": "Auto (EC)", "zh": "自动 (EC)", "ja": "自動 (EC)"},
     "sys.fanwarn":     {"en": "Only raises the fan, never lowers it. Hands back to Auto anytime.", "pl": "Tylko podnosi obroty, nigdy nie obniża. Auto oddaje sterowanie EC.", "de": "Erhöht nur, senkt nie. „Auto“ gibt an den EC zurück.", "fr": "Augmente seulement, ne baisse jamais. « Auto » rend au EC.", "es": "Solo sube, nunca baja. «Auto» devuelve al EC.", "zh": "只提升，绝不降低。“自动”交还给 EC。", "ja": "上げるだけで下げません。「自動」でECに戻します。"},
     "colors.perled":   {"en": "Per-LED colors", "pl": "Kolory per dioda", "de": "Farbe je LED", "fr": "Couleur par LED", "es": "Color por LED", "zh": "每颗 LED 颜色", "ja": "LEDごとの色"},
+    "btn.default":     {"en": "Default", "pl": "Domyślny", "de": "Standard", "fr": "Défaut", "es": "Predet.", "zh": "默认", "ja": "既定"},
     "btn.rainbow":     {"en": "Rainbow", "pl": "Tęcza", "de": "Regenbogen", "fr": "Arc-en-ciel", "es": "Arcoíris", "zh": "彩虹", "ja": "レインボー"},
     "btn.solid":       {"en": "Solid…", "pl": "Jednolity…", "de": "Einfarbig…", "fr": "Uni…", "es": "Sólido…", "zh": "纯色…", "ja": "単色…"},
     "btn.off":         {"en": "Off", "pl": "Wyłącz", "de": "Aus", "fr": "Éteint", "es": "Apagar", "zh": "关闭", "ja": "オフ"},

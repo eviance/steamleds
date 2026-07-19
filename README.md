@@ -1,122 +1,85 @@
-# steamleds
+<div align="center">
 
-Control the **Valve Steam Machine ("Fremont")** front RGB LEDs from **Windows**.
+<img src="steamleds/assets/icon.png" width="120" alt="SteamLEDs icon" />
 
-SteamOS drives the 17 front-panel LEDs with its in-kernel `leds_valve` driver.
-This project reproduces that control on Windows by writing the same Embedded-Controller
-I/O-port registers through a ring0 helper — so you get per-LED color, brightness,
-and the firmware effects without SteamOS.
+# SteamLEDs
 
-> **Status:** the register map and the raw-port control path are **verified on the
-> real hardware from SteamOS** (see [`docs/REGISTER_MAP.md`](docs/REGISTER_MAP.md)).
-> The Windows port-I/O layer uses the standard `inpoutx64` / `WinRing0` drivers but
-> still needs testing on a Fremont booted into Windows — see [Testing](#testing).
-> Reports welcome!
+**Control the Valve Steam Machine's front RGB lighting — on Windows.**
 
-## Features
+Colors · hardware effects · custom animations · national-flag stadium waves · live temps & fan RPM — in a clean, translucent app that lives in your tray.
 
-- 🎨 Set all 17 LEDs individually (per-LED RGB)
-- 🌈 One-shot presets: rainbow, solid color, off
-- ✨ Firmware effects with live parameters: `breath`, `rainbow`, `patrol` (KITT),
-  `demo` — plus speed, breath level, color-shift and patrol-count tuning
-- 🏴 **Flag wave** — national flag colors sweeping across the strip like a stadium
-  wave (Poland, Ukraine, France, Germany, Italy, … — pick your country)
-- 🔌 **Boot/power-on color** — persist a color that shows from power-on, before login
-- 🔆 Global brightness control (can go brighter than the factory default)
-- 🖥️ Modern **translucent** dark desktop app (Windows 11 Mica/Acrylic glass,
-  rounded corners, adjustable opacity); tabs: Colors / Effects / Flags /
-  Animations / Settings; **runs in the system tray**, optional **start-with-Windows**
-- 🌍 **7 languages** — English, Polski, Deutsch, Français, Español, 中文, 日本語
-  (with CJK-aware fonts)
-- 🛠️ **Animation builder** — compose Pattern × Motion (scroll/wave/pulse/breathe/
-  blink), tune speed/direction/colors, and save named presets
-- ⌨️ Scriptable CLI as well (`python -m steamleds …`)
+![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D6)
+![Python](https://img.shields.io/badge/python-3.10%2B-3776AB)
+![License](https://img.shields.io/badge/license-MIT-f5a623)
+![Languages](https://img.shields.io/badge/i18n-7%20languages-3ac569)
+[![Ko-fi](https://img.shields.io/badge/support-Ko--fi-ff5e5b)](https://ko-fi.com/eviance)
 
-## How it works
+</div>
 
-The panel lives at x86 I/O ports `0x0DE8–0x0E7A` in the EC region. User-mode
-Windows can't run `IN`/`OUT`, so — exactly like OpenRGB/HWiNFO — we call a signed
-kernel helper:
+---
 
-- **inpoutx64** — https://www.highrez.co.uk/downloads/inpout32/ (default)
-- **WinRing0** — `WinRing0x64.dll` + `.sys` (the one OpenRGB ships)
+The Steam Machine ("Valve Fremont") has **17 front RGB LEDs**, but there's no tool for
+them on Windows. **SteamLEDs fixes that.** I reverse-engineered how SteamOS's kernel
+driver talks to the board's embedded controller, confirmed it on real hardware, and
+rebuilt the whole thing as a modern Windows app.
 
-Put the chosen DLL (and its `.sys`) next to the app and run **as Administrator**.
+> 📸 _Add a screenshot here → `docs/screenshot.png`_
 
-⚠️ **This must run on the Steam Machine itself, booted into Windows.** The ports
-are decoded by that machine's Embedded Controller, not by the OS; running it on any
-other PC does nothing (or pokes unrelated ports).
+## ✨ Features
 
-## Install
+| | |
+|---|---|
+| 🎨 **Per-LED color** | Paint all 17 LEDs individually, or one solid color |
+| 🔵 **Standard default** | One click restores the main blue |
+| ✨ **Hardware effects** | breathe · rainbow · patrol (KITT) · demo — with live params |
+| 🏁 **Flag stadium wave** | National flags sweeping across like a crowd wave — pick direction/mirror |
+| 🛠️ **Animation builder** | Compose Pattern × Motion, tune it, **save presets** |
+| 🌡️ **System monitor** | Live temperatures + fan RPM, straight from the EC |
+| 🌀 **Fan boost** | *Up-only* by design — can only add cooling, never less |
+| 🌍 **7 languages** | English · Polski · Deutsch · Français · Español · 中文 · 日本語 |
+| 🪟 **Modern UI** | Flat dark design, optional Windows 11 glass, tray + autostart |
 
-```powershell
-git clone https://github.com/<you>/steamleds
-cd steamleds
-# optional: pip install -e .   (adds a `steamleds` command)
-```
+## 🚀 Download & run
 
-Requires Python 3.10+ on Windows. Download `inpoutx64.dll` (and let it install its
-driver on first run) or grab `WinRing0x64.dll`/`.sys`, and place it in the repo root.
+1. Grab the latest **`SteamLEDs-vX.Y-win-x64.zip`** from [Releases](../../releases).
+2. Unzip **on the Steam Machine, booted into Windows** (the LED ports are decoded by
+   that machine's hardware — it won't do anything on another PC).
+3. Run **`SteamLEDs.exe`** → accept the Administrator prompt. That's it. 🎉
 
-## Usage (CLI)
+`inpoutx64.dll` (the signed ring0 helper) is bundled. Without hardware the app opens
+in a harmless **preview** mode so you can explore the UI anywhere.
 
-Run an **elevated** terminal (Administrator):
+**Start with Windows:** Settings → *Start with Windows*, or run `autostart\install_autostart.ps1`.
+
+## 🧑‍💻 Build from source
 
 ```powershell
-python -m steamleds rainbow
-python -m steamleds solid "#ff00ff"
-python -m steamleds led 0 "#00ff88"
-python -m steamleds gradient "#ff0000" "#00ff00" "#0000ff"
-python -m steamleds effect breath --delay 6 --breath 40
-python -m steamleds effect rainbow --shift 8
-python -m steamleds startup "#3300ff"   # boot/power-on color (persists)
-python -m steamleds flag Poland                       # static flag
-python -m steamleds flag Ukraine --wave --seconds 15  # stadium wave
-python -m steamleds off
-python -m steamleds dump            # read back current colors
-python -m steamleds gui             # graphical panel
+pip install customtkinter pystray pillow
+python -m steamleds --app          # run the desktop app
+python -m steamleds rainbow        # or use the CLI
+python build_exe.ps1               # package the .exe (needs pyinstaller)
 ```
 
-Options: `--backend {auto,inpout,winring0,dummy}`, `--brightness 0..255`.
-Use `--backend dummy` on any machine to try the code with no hardware/driver.
+## 🔬 How it works
 
-## Usage (library)
+The LEDs sit at x86 I/O ports `0x0DE8…` in the embedded-controller region; temps and
+fan RPM at the ChromeOS-EC memory-mapped window `0x900`. SteamLEDs pokes the same ports
+via a signed ring0 driver (`inpoutx64` / WinRing0) — exactly like OpenRGB does for other
+gear. Full reverse-engineering write-up: **[`docs/REGISTER_MAP.md`](docs/REGISTER_MAP.md)**.
 
-```python
-from steamleds import LedController, open_backend, rainbow
+## 🛡️ Safety
 
-ctrl = LedController(open_backend("inpout"))
-ctrl.set_all(rainbow(17))
-ctrl.set_led(0, (255, 0, 255))
-ctrl.set_brightness_scale(120)
-```
+Only the documented `valve-leds` and EC sensor windows are touched — never the ACPI EC
+command ports. Fan control is **up-only** (it can raise cooling, never lower it) and hands
+back to the EC's automatic control at any time.
 
-## Testing
+## ☕ Support
 
-- **Logic (any OS, no driver):** `python tests/test_controller.py` — exercises the
-  register math against the in-memory `dummy` backend.
-- **On SteamOS (Linux):** `sudo python3 tools/linux_reference.py rainbow` writes the
-  ports directly via `/dev/port` — the reference the Windows path mirrors.
-- **On Windows (the Fremont):** run any CLI command elevated and check the panel.
-  Please open an issue with your results — especially safe `brightness_scale` limits.
+SteamLEDs is free and open-source. If it's useful to you, a coffee keeps it going:
+**[ko-fi.com/eviance](https://ko-fi.com/eviance)** — thank you! 🙏
 
-## Safety
+## 📄 Credits & license
 
-Poking EC I/O ports is low-level. This project only touches the `valve-leds` window
-(`0x0DE8` block) documented in [`docs/REGISTER_MAP.md`](docs/REGISTER_MAP.md) and never
-the ACPI EC command ports (`0x62`/`0x66`). The factory `brightness_scale` is 55
-(~21% duty); raise it gradually — very high values are untested for thermal/current.
-
-## Contributing
-
-Issues and PRs welcome — more effects, a nicer GUI, a C#/C++ port, packaging, and
-especially **hardware test reports**. See [`docs/REGISTER_MAP.md`](docs/REGISTER_MAP.md)
-for the full reverse-engineering write-up.
-
-## Credits & license
-
-- Register map reverse-engineered from Valve's GPL `leds_valve` driver
-  (`drivers/leds/rgb/leds-valve.c`, by Robert Beckett / Collabora) — thanks to them
-  for shipping it open.
-- This project: **MIT** (see [`LICENSE`](LICENSE)). Not affiliated with or endorsed
-  by Valve.
+Register map reverse-engineered from Valve's GPL `leds_valve` driver (Robert Beckett /
+Collabora — thanks for shipping it open). This project is **MIT** licensed and is **not**
+affiliated with or endorsed by Valve.

@@ -35,6 +35,7 @@ TEXT = "#ffffff"
 MUTED = "#8b8da5"
 DARKBTN = "#191a24"
 RADIUS = 12             # flat = gentle corners
+DEFAULT_COLOR = (0, 122, 255)   # the standard "main" blue the panel restores to
 
 
 def _asset(name: str) -> str:
@@ -100,7 +101,7 @@ class SteamLedsApp(ctk.CTk):
 
         self._ui: ctk.CTkFrame | None = None
         self._build_ui()
-        self._set_rainbow()
+        self._set_default()   # start on the standard main blue
 
         self.protocol("WM_DELETE_WINDOW", self.hide_to_tray)
         self._start_tray()
@@ -185,9 +186,10 @@ class SteamLedsApp(ctk.CTk):
 
         row = ctk.CTkFrame(tab, fg_color="transparent")
         row.pack(fill="x", padx=6, pady=(2, 6))
-        for txt, cmd in ((t("btn.rainbow"), self._set_rainbow), (t("btn.solid"), self._set_solid),
-                         (t("btn.off"), self._set_off), (t("btn.boot"), self._set_boot)):
-            self._accent_btn(row, txt, cmd).pack(side="left", padx=4)
+        for txt, cmd in ((t("btn.default"), self._set_default), (t("btn.rainbow"), self._set_rainbow),
+                         (t("btn.solid"), self._set_solid), (t("btn.off"), self._set_off),
+                         (t("btn.boot"), self._set_boot)):
+            self._accent_btn(row, txt, cmd, width=84).pack(side="left", padx=3)
 
         b = self._card(tab, t("lbl.brightness"))
         self.bright = ctk.CTkSlider(b, from_=1, to=255, command=self._on_bright)
@@ -212,6 +214,11 @@ class SteamLedsApp(ctk.CTk):
         if rgb:
             self.colors[i] = (int(rgb[0]), int(rgb[1]), int(rgb[2]))
             self._refresh_sw(); self._push()
+
+    def _set_default(self):
+        """Restore the panel to the standard main blue."""
+        self._stop_anim(); self.colors = [DEFAULT_COLOR] * LED_COUNT
+        self._refresh_sw(); self._push()
 
     def _set_rainbow(self):
         self._stop_anim(); self.colors = rainbow(LED_COUNT)
