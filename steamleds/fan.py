@@ -27,8 +27,11 @@ def _checksum(data: bytes) -> int:
     return (-sum(data)) & 0xFF
 
 
-def _send(io, command: int, data: bytes = b"", cmd_version: int = 0) -> int | None:
-    """Send one EC host command (protocol v3). Returns EC result code, or None on timeout."""
+def _send(io, command: int, data: bytes = b"", cmd_version: int = 0):
+    """Send one EC host command (protocol v3).
+
+    Returns (result_code, response_payload) or (None, b"") on timeout.
+    """
     hdr = bytearray(struct.pack("<BBHBBH", 3, 0, command, cmd_version, 0, len(data)))
     packet = bytes(hdr) + data
     packet = packet[:1] + bytes([_checksum(packet)]) + packet[2:]
@@ -41,23 +44,30 @@ def _send(io, command: int, data: bytes = b"", cmd_version: int = 0) -> int | No
         if not (io.read(ADDR_HOST_CMD) & STATUS_BUSY):
             break
     else:
-        return None
+        return None, b""
     # response header: version, checksum, result(2), data_len(2), reserved(2)
     resp = bytes(io.read(ADDR_HOST_PACKET + i) for i in range(8))
-    _ver, _csum, result, _dlen, _res = struct.unpack("<BBHHH", resp)
-    return result
+    _ver, _csum, result, dlen, _res = struct.unpack("<BBHHH", resp)
+    dlen = max(0, min(int(dlen), 64))
+    payload = bytes(io.read(ADDR_HOST_PACKET + 8 + i) for i in range(dlen))
+    return result, payload
+
+
+def command(io, cmd: int, data: bytes = b"", cmd_version: int = 0):
+    """Public helper: returns (result_code, response_payload)."""
+    return _send(io, cmd, data, cmd_version)
 
 
 def set_target_rpm(io, rpm: int) -> bool:
     """Set the EC fan target RPM (all EC fans). Returns True on EC success."""
     rpm = max(0, min(65534, int(rpm)))
-    res = _send(io, EC_CMD_PWM_SET_FAN_TARGET_RPM, struct.pack("<I", rpm), cmd_version=0)
+    res, _ = _send(io, EC_CMD_PWM_SET_FAN_TARGET_RPM, struct.pack("<I", rpm), cmd_version=0)
     return res == 0
 
 
 def auto(io) -> bool:
     """Return fans to the EC's automatic thermal control."""
-    res = _send(io, EC_CMD_THERMAL_AUTO_FAN_CTRL, b"", cmd_version=0)
+    res, _ = _send(io, EC_CMD_THERMAL_AUTO_FAN_CTRL, b"", cmd_version=0)
     return res == 0
 
 

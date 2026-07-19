@@ -61,3 +61,32 @@ def read_all(io) -> dict:
     if not ec_present(io):
         return {"present": False, "temps": [], "fans": []}
     return {"present": True, "temps": read_temps(io), "fans": read_fans(io)}
+
+
+EC_CMD_TEMP_SENSOR_GET_INFO = 0x0070
+
+
+def _clean_name(raw: bytes) -> str | None:
+    name = raw.split(b"\x00")[0].decode("ascii", "ignore").strip()
+    # must look like a real label (printable, has a letter) or we ignore it
+    if name and any(c.isalpha() for c in name) and name.isprintable():
+        return name
+    return None
+
+
+def read_sensor_names(io, n: int = MAX_TEMPS) -> list[str | None]:
+    """Ask the EC firmware for each temperature sensor's name (best-effort).
+
+    Uses the cros_ec host command; returns None per-sensor if it's unavailable,
+    so callers can fall back to a generic label.
+    """
+    from . import fan
+
+    names: list[str | None] = []
+    for i in range(n):
+        try:
+            res, payload = fan.command(io, EC_CMD_TEMP_SENSOR_GET_INFO, bytes([i]))
+            names.append(_clean_name(payload) if res == 0 and payload else None)
+        except Exception:
+            names.append(None)
+    return names

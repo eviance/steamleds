@@ -423,6 +423,18 @@ class SteamLedsApp(ctk.CTk):
                 self._play(p); break
 
     # ---- System (sensors) ----
+    def _sensor_names(self):
+        """Sensor names from EC firmware (once, cached); [] if unavailable."""
+        if getattr(self, "_names", None) is not None:
+            return self._names
+        self._names = []
+        if not self.preview:
+            try:
+                self._names = sensors.read_sensor_names(self.ctrl.io, 4)
+            except Exception:
+                self._names = []
+        return self._names
+
     def _tab_system(self, tab):
         head = self._card(tab, t("sys.temps"))
         self._sys_status = ctk.CTkLabel(head, text="…", text_color=MUTED, font=self._font(11))
@@ -432,9 +444,14 @@ class SteamLedsApp(ctk.CTk):
         grid.pack(fill="x", padx=6, pady=4)
         grid.grid_columnconfigure((0, 1), weight=1)
         self._tiles = {}
+        nm = self._sensor_names()
+
+        def tlabel(k):
+            return nm[k] if k < len(nm) and nm[k] else f"Temp {k + 1}"
+
         specs = [("fan", t("sys.fan"), "RPM", ACCENT), ("hot", t("sys.hottest"), "°C", "#ff5e5b"),
-                 ("t0", "Temp 1", "°C", "#29abe0"), ("t1", "Temp 2", "°C", "#7c5cff"),
-                 ("t2", "Temp 3", "°C", "#3ac569"), ("t3", "Temp 4", "°C", "#f5a623")]
+                 ("t0", tlabel(0), "°C", "#29abe0"), ("t1", tlabel(1), "°C", "#7c5cff"),
+                 ("t2", tlabel(2), "°C", "#3ac569"), ("t3", tlabel(3), "°C", "#f5a623")]
         for idx, (key, label, unit, color) in enumerate(specs):
             card = ctk.CTkFrame(grid, fg_color=CARD2, corner_radius=RADIUS)
             card.grid(row=idx // 2, column=idx % 2, sticky="nsew", padx=6, pady=6)
