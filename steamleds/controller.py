@@ -48,7 +48,9 @@ EFFECTS = {
 }
 EFFECT_NAMES = {v: k for k, v in EFFECTS.items()}
 
-DEFAULT_BRIGHTNESS_SCALE = 0x37  # 55, matches the factory/BIOS setting
+# The EC's brightness_scale register doesn't affect output on this hardware, so the
+# app controls brightness by scaling the colours it writes into block B. 255 = full.
+DEFAULT_BRIGHTNESS_SCALE = 255
 
 
 class LedController:
@@ -102,10 +104,10 @@ class LedController:
             raise IndexError(f"LED index {index} out of range 0..{LED_COUNT - 1}")
         self._raw[index] = color
         phys = self._phys(index)
-        # Write ONLY block B (the raw source). The EC continuously recomputes
-        # block A = B * brightness_scale / 255 itself, so writing A here just
-        # races the EC and makes LEDs flicker/blink during animations.
-        self._write_rgb(OFF_BLOCK_B, phys, color)
+        # Write ONLY block B; the EC derives the driven PWM (block A) from it. We
+        # scale the colour by the app brightness here (the EC's own scale register
+        # has no effect on this hardware). Writing only B also avoids flicker.
+        self._write_rgb(OFF_BLOCK_B, phys, self._scaled(color))
 
     def set_all(self, colors: list[RGB]) -> None:
         if len(colors) != LED_COUNT:
@@ -126,12 +128,10 @@ class LedController:
 
     def set_brightness_scale(self, scale: int, reapply: bool = True) -> None:
         self._scale = max(0, min(255, scale))
-        self.io.write(BASE + OFF_BRIGHTNESS_SCALE, self._scale)
-        # The EC recomputes block A (=B*scale/255) only when block B is written, so
-        # re-apply the current colours to make the new brightness take effect now.
+        # Brightness is applied by re-writing block B with the scaled colours.
         if reapply:
             for i, c in enumerate(self._raw):
-                self._write_rgb(OFF_BLOCK_B, self._phys(i), c)
+                self._write_rgb(OFF_BLOCK_B, self._phys(i), self._scaled(c))
 
     def set_effect(self, name: str) -> None:
         key = name.lower()

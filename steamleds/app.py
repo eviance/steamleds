@@ -14,7 +14,7 @@ import webbrowser
 from tkinter import colorchooser
 
 KOFI_URL = "https://ko-fi.com/eviance"
-APP_VERSION = "1.10"
+APP_VERSION = "1.11"
 
 import customtkinter as ctk
 
